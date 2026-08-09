@@ -219,8 +219,6 @@ class StravaExporter(
             "Bayesian", "Markovian", "Ergodic", "Annealed", "Heuristic",
             "Volatile", "Scattershot", "Slapdash", "Peripatetic", "Rambunctious",
             "Untrammeled", "Feral", "Anarchic", "Herculean", "Promethean",
-            "Yoked Galileo's", "Diesel Tycho Brahe's", "Massive Marie Curie's",
-            "Jacked Ada Lovelace's", "Ripped Ramanujan's",
         )
         private val STRENGTHS = listOf(
             "Power", "Might", "Brawn", "Vigor", "Grit", "Strength",
