@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.model
 
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 
 data class PlannedExercise(
@@ -9,6 +10,13 @@ data class PlannedExercise(
     val warmupSets: List<WarmupSet> = emptyList(),
     val estimatedSeconds: Int = 0,
 ) {
+    /**
+     * Whether this exercise puts an actual load on the user. False for bodyweight and timed work,
+     * which has no weight to add to, reduce, or call heavy.
+     */
+    val isWeighted: Boolean get() =
+        !exercise.isTimed && exercise.equipment != Equipment.BODYWEIGHT && sessionWeight > 0f
+
     companion object {
         const val DEFAULT_SETS = 3
     }

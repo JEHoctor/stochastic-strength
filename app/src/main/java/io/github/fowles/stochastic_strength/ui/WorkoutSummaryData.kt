@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.ui
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
@@ -12,16 +13,19 @@ data class SummarySet(
     val actualReps: Int?,
     val feedback: SetFeedback?,
     val isTimed: Boolean = false,
-)
+    val isBodyweight: Boolean = false,
+) {
+    /** Mirrors [io.github.fowles.stochastic_strength.domain.model.PlannedExercise.isWeighted]. */
+    val isWeighted: Boolean get() = !isTimed && !isBodyweight && targetWeight > 0f
+}
 
-fun WorkoutSet.toSummarySet(isTimed: Boolean) =
-    SummarySet(setNumber, targetWeight, targetReps, actualReps, feedback, isTimed)
+fun WorkoutSet.toSummarySet(isTimed: Boolean, isBodyweight: Boolean) =
+    SummarySet(setNumber, targetWeight, targetReps, actualReps, feedback, isTimed, isBodyweight)
 
 /** Reps-in-reserve feedback is meaningless for timed sets (auto-recorded), so it is hidden. */
 fun SummarySet.summaryFeedbackLabel(): String? {
     val fb = feedback?.takeUnless { isTimed && it.isRepsInReserve } ?: return null
-    if (isTimed && fb == SetFeedback.TOO_HARD) return "Too Hard"
-    return fb.displayLabel(actualReps)
+    return fb.displayLabel(weighted = isWeighted, actualReps = actualReps.takeUnless { isTimed })
 }
 
 data class SummaryExercise(val name: String, val exerciseId: Long, val sets: List<SummarySet>)
@@ -46,7 +50,12 @@ suspend fun loadWorkoutSummary(db: AppDatabase, sessionId: Long): WorkoutSummary
             name = exercise?.name ?: "Unknown",
             exerciseId = id,
             sets = (setsByExercise[id] ?: emptyList()).sortedBy { it.setNumber }
-                .map { it.toSummarySet(exercise?.isTimed ?: false) },
+                .map {
+                    it.toSummarySet(
+                        isTimed = exercise?.isTimed ?: false,
+                        isBodyweight = exercise?.equipment == Equipment.BODYWEIGHT,
+                    )
+                },
         )
     }
     val duration = if (session != null && session.endTime != null) {

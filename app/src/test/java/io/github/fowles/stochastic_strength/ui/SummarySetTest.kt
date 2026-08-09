@@ -6,14 +6,21 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SummarySetTest {
-    private fun set(feedback: SetFeedback?, isTimed: Boolean, actualReps: Int? = null) =
+    private fun set(
+        feedback: SetFeedback?,
+        isTimed: Boolean,
+        actualReps: Int? = null,
+        targetWeight: Float = 60f,
+        isBodyweight: Boolean = false,
+    ) =
         SummarySet(
             setNumber = 1,
-            targetWeight = 0f,
+            targetWeight = targetWeight,
             targetReps = 8,
             actualReps = actualReps,
             feedback = feedback,
             isTimed = isTimed,
+            isBodyweight = isBodyweight,
         )
 
     @Test
@@ -27,6 +34,36 @@ class SummarySetTest {
     fun timedSetsStillShowTooHardAndHurt() {
         assertEquals("Too Hard", set(SetFeedback.TOO_HARD, isTimed = true).summaryFeedbackLabel())
         assertEquals("Hurt", set(SetFeedback.HURT, isTimed = true).summaryFeedbackLabel())
+    }
+
+    @Test
+    fun timedSetsNeverAnnotateReps() {
+        assertEquals(
+            "Too Hard",
+            set(SetFeedback.TOO_HARD, isTimed = true, actualReps = 5).summaryFeedbackLabel(),
+        )
+    }
+
+    @Test
+    fun bodyweightSetsSayTooHard() {
+        assertEquals(
+            "Too Hard",
+            set(SetFeedback.TOO_HARD, isTimed = false, targetWeight = 0f, isBodyweight = true)
+                .summaryFeedbackLabel(),
+        )
+        assertEquals(
+            "Too Hard (5)",
+            set(SetFeedback.TOO_HARD, isTimed = false, targetWeight = 0f, isBodyweight = true, actualReps = 5)
+                .summaryFeedbackLabel(),
+        )
+    }
+
+    @Test
+    fun unloadedSetsSayTooHardEvenWhenNotBodyweightEquipment() {
+        assertEquals(
+            "Too Hard",
+            set(SetFeedback.TOO_HARD, isTimed = false, targetWeight = 0f).summaryFeedbackLabel(),
+        )
     }
 
     @Test

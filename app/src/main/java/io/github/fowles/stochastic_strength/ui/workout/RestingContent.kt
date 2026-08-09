@@ -42,7 +42,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.usesBarPlates
@@ -96,7 +95,10 @@ internal fun RestingContent(
                     StagedKind.SWAP -> "Swapped exercise"
                     StagedKind.ADJUST_WEIGHT -> "Weight changed"
                     StagedKind.WARMUP_DONE -> "Warmup complete"
-                    null -> "Logged: ${state.lastFeedback?.displayLabel ?: ""}"
+                    null -> {
+                        val weighted = state.plan.exercises[state.exerciseIndex].isWeighted
+                        "Logged: ${state.lastFeedback?.displayLabel(weighted) ?: ""}"
+                    }
                 }
                 Text(
                     subtitle,
@@ -160,8 +162,7 @@ internal fun RestingContent(
         ) {
             val plannedExercise = state.plan.exercises[state.exerciseIndex]
             val moreSetsForThisExercise = state.completedSetIndex < PlannedExercise.DEFAULT_SETS - 1
-            val isWeighted = plannedExercise.exercise.equipment != Equipment.BODYWEIGHT
-                && plannedExercise.sessionWeight > 0f
+            val isWeighted = plannedExercise.isWeighted
             val nextExercise = if (state.exerciseIndex + 1 < plan.exercises.size)
                 plan.exercises[state.exerciseIndex + 1] else null
             val weightReduced = plannedExercise.sessionWeight != state.weightAtSetStart

@@ -434,10 +434,15 @@ private fun SelectedDayDetail(
             modifier = Modifier.padding(bottom = 4.dp),
         )
         if (primarySets.isNotEmpty()) {
-            ExerciseSetSection(exercise.name, primarySets.map { it.toSummarySet(exercise.isTimed) }, weightUnit)
+            val isBodyweight = exercise.equipment == Equipment.BODYWEIGHT
+            ExerciseSetSection(
+                exercise.name,
+                primarySets.map { it.toSummarySet(exercise.isTimed, isBodyweight) },
+                weightUnit,
+            )
         }
         shadowSets.groupBy { it.exerciseName }.forEach { (name, entries) ->
-            ExerciseSetSection(name, entries.map { it.set.toSummarySet(it.isTimed) }, weightUnit)
+            ExerciseSetSection(name, entries.map { it.set.toSummarySet(it.isTimed, it.isBodyweight) }, weightUnit)
         }
     }
 }

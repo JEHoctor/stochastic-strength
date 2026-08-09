@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
@@ -91,7 +92,12 @@ internal fun observedSessionPoints(
         }
     }.sortedBy { it.dateMs }
 
-data class ExerciseSetEntry(val exerciseName: String, val set: WorkoutSet, val isTimed: Boolean = false)
+data class ExerciseSetEntry(
+    val exerciseName: String,
+    val set: WorkoutSet,
+    val isTimed: Boolean = false,
+    val isBodyweight: Boolean = false,
+)
 
 data class ExerciseDetailState(
     val exercise: Exercise? = null,
@@ -205,7 +211,7 @@ class ExerciseDetailViewModel(
             val completed = repository.getAllSetsForExercise(rel.id).filter { it.completedAt != null }
             for ((_, sessionSets) in completed.groupBy { it.sessionId }) {
                 val dayKey = ExerciseChartGrouping.sessionDayKey(sessionSets.first(), sessionAnchorById, zone)
-                sessionSets.forEach { dayToEntries.getOrPut(dayKey) { mutableListOf() }.add(ExerciseSetEntry(rel.name, it, rel.isTimed)) }
+                sessionSets.forEach { dayToEntries.getOrPut(dayKey) { mutableListOf() }.add(ExerciseSetEntry(rel.name, it, rel.isTimed, rel.equipment == Equipment.BODYWEIGHT)) }
                 shadowSessions += ObservedSession(day = dayKey, scale = scaleFactor, sets = sessionSets)
             }
         }

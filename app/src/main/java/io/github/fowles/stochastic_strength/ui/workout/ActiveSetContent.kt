@@ -62,7 +62,7 @@ internal fun ActiveSetContent(
         ) {
             Text("How many more reps could you have done?", style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(12.dp))
-            FeedbackButtons(onFeedback = onFeedback)
+            FeedbackButtons(weighted = state.plannedExercise.isWeighted, onFeedback = onFeedback)
         }
     }
 }
@@ -150,7 +150,7 @@ private fun TimedSetContent(
                 onClick = { onFeedback(SetFeedback.TOO_HARD) },
                 colors = errorColors,
                 modifier = Modifier.weight(1f),
-            ) { Text("Too Hard") }
+            ) { Text(SetFeedback.TOO_HARD.displayLabel(weighted = false)) }
             OutlinedButton(
                 onClick = { onFeedback(SetFeedback.HURT) },
                 colors = errorColors,
@@ -226,7 +226,7 @@ internal fun ExerciseSetLayout(
 
 
 @Composable
-private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
+private fun FeedbackButtons(weighted: Boolean, onFeedback: (SetFeedback) -> Unit) {
     val errorColor = ButtonDefaults.outlinedButtonColors(
         contentColor = MaterialTheme.colorScheme.error,
     )
@@ -256,7 +256,7 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
                 onClick = { onFeedback(SetFeedback.TOO_HARD) },
                 colors = errorColor,
                 modifier = Modifier.weight(1f),
-            ) { Text("Too Heavy") }
+            ) { Text(SetFeedback.TOO_HARD.displayLabel(weighted)) }
             OutlinedButton(
                 onClick = { onFeedback(SetFeedback.HURT) },
                 colors = errorColor,
