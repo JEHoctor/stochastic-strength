@@ -16,8 +16,8 @@ android {
         applicationId = "io.github.fowles.stochastic_strength"
         minSdk = 33
         targetSdk = 36
-        versionCode = 39
-        versionName = "3.9"
+        versionCode = 40
+        versionName = "4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "STRAVA_CLIENT_ID", "\"${providers.gradleProperty("STRAVA_CLIENT_ID").getOrElse("")}\"")
@@ -65,6 +65,12 @@ ksp {
 }
 
 dependencies {
+    constraints {
+        // play-services-base/basement drag in fragment 1.1.0, which Play Console
+        // flags as outdated. The app itself is Compose-only and uses no fragments.
+        implementation(libs.androidx.fragment)
+    }
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
