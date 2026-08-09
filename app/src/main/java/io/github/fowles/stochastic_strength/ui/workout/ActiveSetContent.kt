@@ -36,6 +36,7 @@ import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.usesBarPlates
+import io.github.fowles.stochastic_strength.domain.TimedSet
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.ui.YoutubeFormCard
 
@@ -78,7 +79,7 @@ private fun TimedSetContent(
     val secondsRemaining = state.timerSecondsRemaining
     val started = secondsRemaining != null
 
-    val targetProgress = if (started) secondsRemaining / WorkoutSessionController.TIMED_SET_SECONDS.toFloat() else 1f
+    val targetProgress = if (started) secondsRemaining / TimedSet.DURATION_SECONDS.toFloat() else 1f
     val animatedProgress = remember { Animatable(1f) }
     LaunchedEffect(secondsRemaining) {
         animatedProgress.animateTo(

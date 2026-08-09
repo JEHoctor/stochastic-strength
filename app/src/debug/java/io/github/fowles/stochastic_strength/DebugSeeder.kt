@@ -5,6 +5,7 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.RepRangePicker
+import io.github.fowles.stochastic_strength.domain.TimedSet
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.ui.workout.WorkoutViewModel
@@ -80,7 +81,7 @@ object DebugSeeder {
                             actualReps = actualReps,
                             feedback = feedback,
                             completedAt = setTime,
-                            durationSeconds = if (planned.exercise.isTimed) WorkoutSessionController.TIMED_SET_SECONDS else null,
+                            durationSeconds = if (planned.exercise.isTimed) TimedSet.DURATION_SECONDS else null,
                         )
                     )
                 }

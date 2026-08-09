@@ -13,6 +13,7 @@ import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.ReplacementTier
+import io.github.fowles.stochastic_strength.domain.TimedSet
 import io.github.fowles.stochastic_strength.domain.WorkoutPlanner
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.history.RestQuips
@@ -43,6 +44,7 @@ class WorkoutSessionController(
     private val bus: WorkoutSessionBus,
     private val scope: CoroutineScope,
     private val onVibrate: () -> Unit = {},
+    private val timedSetSeconds: Int = TimedSet.DURATION_SECONDS,
 ) {
 
     private val _state = MutableStateFlow<WorkoutState>(WorkoutState.Loading)
@@ -256,7 +258,7 @@ class WorkoutSessionController(
     fun startTimedSet() {
         val current = _state.value as? WorkoutState.ActiveSet ?: return
         if (current.timerSecondsRemaining != null) return
-        setState(current.copy(timerSecondsRemaining = TIMED_SET_SECONDS))
+        setState(current.copy(timerSecondsRemaining = timedSetSeconds))
         timedSetTimerJob?.cancel()
         timedSetTimerJob = scope.launch {
             while (true) {
@@ -265,6 +267,7 @@ class WorkoutSessionController(
                 val remaining = s.timerSecondsRemaining ?: return@launch
                 if (remaining <= 1) {
                     onVibrate()
+                    setState(s.copy(timerSecondsRemaining = 0))
                     recordFeedback(SetFeedback.RIR_0_1)
                     return@launch
                 }
@@ -292,7 +295,11 @@ class WorkoutSessionController(
                     actualReps = initialActualReps,
                     feedback = feedback,
                     completedAt = System.currentTimeMillis(),
-                    durationSeconds = if (planned.exercise.isTimed) TIMED_SET_SECONDS else null,
+                    durationSeconds = TimedSet.elapsedSeconds(
+                        isTimed = planned.exercise.isTimed,
+                        secondsRemaining = current.timerSecondsRemaining,
+                        fullSeconds = timedSetSeconds,
+                    ),
                 )
             )
             if (feedback == SetFeedback.HURT) {
@@ -670,7 +677,7 @@ class WorkoutSessionController(
                     exerciseName = planned.exercise.name,
                     setLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
                     secondsRemaining = state.timerSecondsRemaining,
-                    progressMax = TIMED_SET_SECONDS,
+                    progressMax = timedSetSeconds,
                 )
             } else {
                 WorkoutNotificationState.ActiveSet(
@@ -714,7 +721,6 @@ class WorkoutSessionController(
 
     companion object {
         const val REST_SECONDS = 90
-        const val TIMED_SET_SECONDS = 60
         const val NO_ROW = -1L
     }
 }
