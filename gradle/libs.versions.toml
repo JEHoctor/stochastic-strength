@@ -11,6 +11,7 @@ composeBom = "2026.06.01"
 ksp = "2.3.10"
 room = "2.8.4"
 playServicesLocation = "21.4.0"
+fragment = "1.8.9"
 navigationCompose = "2.9.8"
 vico = "3.2.3"
 okhttp = "5.4.0"
@@ -44,6 +45,7 @@ androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = 
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+androidx-fragment = { group = "androidx.fragment", name = "fragment", version.ref = "fragment" }
 vico-compose-m3 = { module = "com.patrykandpatrick.vico:compose-m3", version.ref = "vico" }
 reorderable = { group = "sh.calvin.reorderable", name = "reorderable", version.ref = "reorderable" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
