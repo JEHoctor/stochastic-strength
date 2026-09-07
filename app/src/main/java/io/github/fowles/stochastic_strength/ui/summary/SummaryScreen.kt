@@ -119,6 +119,7 @@ fun SummaryScreen(
                             )
                             DropdownMenuItem(
                                 text = { Text("Save as workout...") },
+                                enabled = summary != null,
                                 onClick = { menuExpanded = false; showSaveDialog = true },
                             )
                         }
@@ -152,10 +153,10 @@ fun SummaryScreen(
         )
     }
 
-    if (showSaveDialog) {
+    if (showSaveDialog && dateLabel != null) {
         NameDialog(
             title = "Save as workout",
-            initial = "Workout " + (dateLabel?.substringBefore(" ·") ?: ""),
+            initial = "Workout " + dateLabel.substringBefore(" ·"),
             onConfirm = { name -> showSaveDialog = false; viewModel.saveAsWorkout(name) },
             onDismiss = { showSaveDialog = false },
         )
