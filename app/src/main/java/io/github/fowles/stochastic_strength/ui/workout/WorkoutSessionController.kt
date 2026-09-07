@@ -14,10 +14,12 @@ import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.ReplacementTier
 import io.github.fowles.stochastic_strength.domain.TimedSet
+import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
 import io.github.fowles.stochastic_strength.domain.WorkoutPlanner
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.history.RestQuips
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
+import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
@@ -59,6 +61,7 @@ class WorkoutSessionController(
     private var sessionLocationId: Long? = null
     private var preferredRepMin: Int = 5
     private var preferredRepMax: Int = 10
+    private var targetCount: Int = WorkoutGenerator.DEFAULT_EXERCISE_COUNT
 
     private var restTimerJob: Job? = null
     private var timedSetTimerJob: Job? = null
@@ -90,11 +93,13 @@ class WorkoutSessionController(
         val p = repository.buildPlanner(locationId, weightUnit)
         planner = p
         val plan = p.generateWorkout(repMin = preferredRepMin, repMax = preferredRepMax)
+        targetCount = preferredExerciseCount
         setState(WorkoutState.PlanPreview(
             plan = plan,
             locationName = locationName,
             repMin = preferredRepMin,
             repMax = preferredRepMax,
+            targetCount = preferredExerciseCount,
         ))
         adjustExerciseCount(preferredExerciseCount)
         maybeNoteDetraining()
@@ -161,24 +166,28 @@ class WorkoutSessionController(
             }
             val currentIndex = updatedPlan.exercises.indexOfFirst { it.exercise.id == rejectedId }
             if (currentIndex < 0) return@launch
-            val replacement = p.pickReplacement(updatedPlan, currentIndex)
+            // The slider is a floor, not the plan's size: only restock when removing would drop below it.
+            val replacement = if (updatedPlan.exercises.size - 1 < targetCount)
+                p.pickReplacement(updatedPlan, currentIndex) else null
             val newExercises = updatedPlan.exercises.toMutableList()
             if (replacement != null) newExercises[currentIndex] = replacement else newExercises.removeAt(currentIndex)
             setState(current.copy(plan = updatedPlan.copy(exercises = newExercises)))
         }
     }
 
-    fun adjustExerciseCount(targetCount: Int) {
+    fun adjustExerciseCount(newTarget: Int) {
         addExerciseJob?.cancel()
+        targetCount = newTarget.coerceAtLeast(1)
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
         val current = preview.plan.exercises
         when {
             targetCount < current.size -> {
-                val trimmed = current.take(targetCount.coerceAtLeast(1))
-                setState(preview.copy(plan = preview.plan.copy(exercises = trimmed)))
+                val trimmed = current.take(targetCount)
+                setState(preview.copy(plan = preview.plan.copy(exercises = trimmed), targetCount = targetCount))
             }
             targetCount > current.size -> {
                 val needed = targetCount - current.size
+                setState(preview.copy(targetCount = targetCount))
                 addExerciseJob = scope.launch {
                     repeat(needed) {
                         val p = _state.value as? WorkoutState.PlanPreview ?: return@launch
@@ -187,6 +196,7 @@ class WorkoutSessionController(
                     }
                 }
             }
+            else -> setState(preview.copy(targetCount = targetCount))
         }
     }
 
@@ -219,7 +229,7 @@ class WorkoutSessionController(
             warmupSets = if (pe.exercise.isTimed) emptyList() else p.computeWarmupSets(newWeight, pe.exercise),
         )
         val updatedOverrides = state.plan.exerciseOverrides + (exerciseId to newE1rm)
-        setState(state.copy(plan = state.plan.copy(exercises = exercises, exerciseOverrides = updatedOverrides)))
+        setState(state.copy(plan = state.plan.copy(exercises = exercises, exerciseOverrides = updatedOverrides), edited = true))
         weightAdjustJob?.cancel()
         weightAdjustJob = scope.launch {
             planner = repository.buildPlanner(sessionLocationId, weightUnit, updatedOverrides)
@@ -230,7 +240,75 @@ class WorkoutSessionController(
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
         val exercises = preview.plan.exercises.toMutableList()
         exercises.add(to, exercises.removeAt(from))
-        setState(preview.copy(plan = preview.plan.copy(exercises = exercises)))
+        setState(preview.copy(plan = preview.plan.copy(exercises = exercises), edited = true))
+    }
+
+    fun addExercise(exerciseId: Long) {
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        if (preview.plan.exercises.any { it.exercise.id == exerciseId }) return
+        scope.launch {
+            val p = planner ?: return@launch
+            val exercise = repository.getExerciseById(exerciseId) ?: return@launch
+            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
+            if (current.plan.exercises.any { it.exercise.id == exerciseId }) return@launch
+            val planned = p.planExplicit(exercise, reps = null, plan = current.plan)
+            val newPlan = current.plan.copy(
+                exercises = current.plan.exercises + planned,
+                sessionRejectedIds = current.plan.sessionRejectedIds - exerciseId,
+            )
+            setState(withRowFlags(current.copy(plan = newPlan, edited = true)))
+        }
+    }
+
+    fun loadSavedWorkout(id: Long) = applySavedWorkout(id, append = false)
+
+    fun appendSavedWorkout(id: Long) = applySavedWorkout(id, append = true)
+
+    private fun applySavedWorkout(id: Long, append: Boolean) {
+        addExerciseJob?.cancel()
+        scope.launch {
+            val saved = repository.getSavedWorkout(id) ?: return@launch
+            val entries = saved.entries.distinctBy { it.exercise.id }
+            val loadedIds = entries.map { it.exercise.id }.toSet()
+            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
+            // Load discards manual weight edits, so price from a planner that has none.
+            val p = if (append) planner ?: return@launch
+            else repository.buildPlanner(sessionLocationId, weightUnit).also { planner = it }
+            val basePlan = if (append) current.plan else current.plan.copy(exerciseOverrides = emptyMap())
+            // A loaded row wins over an existing row for the same exercise.
+            val kept = if (append) basePlan.exercises.filter { it.exercise.id !in loadedIds } else emptyList()
+            val loaded = entries.map { p.planExplicit(it.exercise, it.reps, basePlan) }
+            val newPlan = basePlan.copy(
+                exercises = kept + loaded,
+                sessionRejectedIds = basePlan.sessionRejectedIds - loadedIds,
+            )
+            setState(withRowFlags(current.copy(plan = newPlan, edited = true)))
+        }
+    }
+
+    /** Saves the current preview rows, in order, with no pinned reps. Null if not on the preview. */
+    suspend fun saveCurrentPlan(name: String): Long? {
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return null
+        return repository.saveWorkout(
+            id = null,
+            name = name,
+            entries = preview.plan.exercises.map { SavedWorkoutEntry(it.exercise, reps = null) },
+        )
+    }
+
+    /** Flags rows the generator would have filtered: location-excluded first, then unrested muscle. */
+    private suspend fun withRowFlags(preview: WorkoutState.PlanPreview): WorkoutState.PlanPreview {
+        val excluded = sessionLocationId?.let { repository.getExcludedExerciseIds(it) } ?: emptySet()
+        val p = planner
+        val flags = preview.plan.exercises.mapNotNull { pe ->
+            val ex = pe.exercise
+            when {
+                ex.id in excluded -> ex.id to RowFlag.NOT_AT_LOCATION
+                p != null && !p.isMuscleRested(ex) -> ex.id to RowFlag.TRAINED_RECENTLY
+                else -> null
+            }
+        }.toMap()
+        return preview.copy(rowFlags = flags)
     }
 
     fun completeWarmupSet() {

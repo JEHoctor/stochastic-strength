@@ -18,6 +18,7 @@ import io.github.fowles.stochastic_strength.domain.DetrainingModel
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.belief.Belief
+import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -97,6 +98,179 @@ class WorkoutSessionControllerTest {
                 active.associate { it.id to Belief(bestGuessLn = kotlin.math.ln(100f), uncertainty = 4e-4f, updatedAt = now) }
             )
         }
+    }
+
+    /** Fresh DB with three loaded exercises and a controller parked on PlanPreview at [count]. */
+    private data class PreviewFixture(
+        val db: AppDatabase, val repo: WorkoutRepository, val controller: WorkoutSessionController,
+    )
+
+    private suspend fun previewFixture(count: Int): PreviewFixture {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries().build()
+        freshDb.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        freshDb.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
+            Exercise(name = "Barbell Row", primaryMuscle = MuscleGroup.BACK, equipment = Equipment.BARBELL),
+        ))
+        val freshRepo = WorkoutRepository(freshDb)
+        val active = freshDb.exerciseDao().getActive()
+        val now = System.currentTimeMillis()
+        freshRepo.derivedState.rebuild { mut ->
+            for (m in listOf(MuscleGroup.CHEST, MuscleGroup.QUADS, MuscleGroup.BACK)) {
+                mut.upsertMuscleGroupStrength(MuscleGroupStrength(m, 100f))
+            }
+            mut.putExerciseBeliefs(
+                active.associate { it.id to Belief(bestGuessLn = kotlin.math.ln(100f), uncertainty = 4e-4f, updatedAt = now) }
+            )
+        }
+        val c = WorkoutSessionController(freshDb, freshRepo, WorkoutSessionBus(), scope)
+        c.initializeSession(
+            locationId = null, locationName = null,
+            preferredExerciseCount = count, preferredRepMin = 5, preferredRepMax = 10,
+            weightUnit = WeightUnit.KG,
+        )
+        awaitPreviewSize(c, count)
+        return PreviewFixture(freshDb, freshRepo, c)
+    }
+
+    private suspend fun awaitPreviewSize(c: WorkoutSessionController, size: Int, timeoutMs: Long = 2000) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            val s = c.state.value
+            if (s is WorkoutState.PlanPreview && s.plan.exercises.size == size) return
+            delay(20)
+        }
+        error("Preview did not reach $size exercises; was ${c.state.value}")
+    }
+
+    private suspend fun awaitPreview(
+        c: WorkoutSessionController,
+        timeoutMs: Long = 2000,
+        predicate: (WorkoutState.PlanPreview) -> Boolean,
+    ) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            val s = c.state.value
+            if (s is WorkoutState.PlanPreview && predicate(s)) return
+            delay(20)
+        }
+        error("Preview never satisfied the condition; was ${c.state.value}")
+    }
+
+    private fun preview(c: WorkoutSessionController) = c.state.value as WorkoutState.PlanPreview
+
+    @Test
+    fun replace_atTarget_restocks() = runBlocking {
+        val f = previewFixture(count = 2)
+        val removedId = preview(f.controller).plan.exercises[0].exercise.id
+        f.controller.replaceExercise(removedId, ExerciseRemovalReason.SKIP_TODAY)
+        awaitPreview(f.controller) { p ->
+            p.plan.exercises.size == 2 && p.plan.exercises.none { it.exercise.id == removedId }
+        }
+        val ids = preview(f.controller).plan.exercises.map { it.exercise.id }
+        assertTrue(removedId !in ids)
+        assertEquals(2, ids.size)
+        f.db.close()
+    }
+
+    @Test
+    fun replace_aboveTarget_removesWithoutRestock() = runBlocking {
+        val f = previewFixture(count = 2)
+        val third = f.db.exerciseDao().getActive().first { ex ->
+            preview(f.controller).plan.exercises.none { it.exercise.id == ex.id }
+        }
+        f.controller.addExercise(third.id)
+        awaitPreviewSize(f.controller, 3)
+        assertEquals(2, preview(f.controller).targetCount)
+
+        f.controller.replaceExercise(third.id, ExerciseRemovalReason.SKIP_TODAY)
+        awaitPreviewSize(f.controller, 2)
+        delay(100)
+        assertEquals(2, preview(f.controller).plan.exercises.size)
+        f.db.close()
+    }
+
+    @Test
+    fun addExercise_appends_marksEdited_andIgnoresDuplicates() = runBlocking {
+        val f = previewFixture(count = 1)
+        assertTrue(!preview(f.controller).edited)
+        val existing = preview(f.controller).plan.exercises[0].exercise.id
+        val other = f.db.exerciseDao().getActive().first { it.id != existing }
+        f.controller.addExercise(other.id)
+        awaitPreviewSize(f.controller, 2)
+        val p = preview(f.controller)
+        assertEquals(other.id, p.plan.exercises[1].exercise.id)
+        assertTrue(p.plan.exercises[1].sessionWeight > 0f)
+        assertTrue(p.edited)
+
+        f.controller.addExercise(other.id)
+        delay(150)
+        assertEquals(2, preview(f.controller).plan.exercises.size)
+        f.db.close()
+    }
+
+    @Test
+    fun loadSavedWorkout_replacesRows_clearsOverrides_keepsTarget() = runBlocking {
+        val f = previewFixture(count = 2)
+        val first = preview(f.controller).plan.exercises[0]
+        f.controller.adjustExerciseWeight(first.exercise.id, +2.5f)
+        assertTrue(preview(f.controller).plan.exerciseOverrides.isNotEmpty())
+
+        val all = f.db.exerciseDao().getActive()
+        val savedId = f.repo.saveWorkout(null, "Trio", all.map { SavedWorkoutEntry(it, 6) })
+        f.controller.loadSavedWorkout(savedId)
+        awaitPreviewSize(f.controller, 3)
+        val p = preview(f.controller)
+        assertEquals(all.map { it.id }, p.plan.exercises.map { it.exercise.id })
+        assertEquals(listOf(6, 6, 6), p.plan.exercises.map { it.sessionReps })
+        assertTrue(p.plan.exerciseOverrides.isEmpty())
+        assertEquals(2, p.targetCount)
+        assertTrue(p.edited)
+        f.db.close()
+    }
+
+    @Test
+    fun appendSavedWorkout_keepsExisting_andReplacesDuplicateWithLoadedRow() = runBlocking {
+        val f = previewFixture(count = 2)
+        val before = preview(f.controller).plan.exercises
+        val dup = before[0].exercise
+        val other = f.db.exerciseDao().getActive().first { ex -> before.none { it.exercise.id == ex.id } }
+        val savedId = f.repo.saveWorkout(null, "Two", listOf(SavedWorkoutEntry(other, 12), SavedWorkoutEntry(dup, 3)))
+        f.controller.appendSavedWorkout(savedId)
+        awaitPreviewSize(f.controller, 3)
+        val ids = preview(f.controller).plan.exercises.map { it.exercise.id }
+        assertEquals(listOf(before[1].exercise.id, other.id, dup.id), ids)
+        assertEquals(3, preview(f.controller).plan.exercises.last().sessionReps)
+        f.db.close()
+    }
+
+    @Test
+    fun saveCurrentPlan_writesOrderWithNullReps() = runBlocking {
+        val f = previewFixture(count = 2)
+        val ids = preview(f.controller).plan.exercises.map { it.exercise.id }
+        val savedId = f.controller.saveCurrentPlan("Snapshot")!!
+        val detail = f.repo.getSavedWorkout(savedId)!!
+        assertEquals("Snapshot", detail.name)
+        assertEquals(ids, detail.entries.map { it.exercise.id })
+        assertTrue(detail.entries.all { it.reps == null })
+        f.db.close()
+    }
+
+    @Test
+    fun adjustExerciseCount_updatesTargetCountOnPreview() = runBlocking {
+        val f = previewFixture(count = 1)
+        f.controller.adjustExerciseCount(3)
+        awaitPreviewSize(f.controller, 3)
+        assertEquals(3, preview(f.controller).targetCount)
+        f.controller.adjustExerciseCount(1)
+        awaitPreviewSize(f.controller, 1)
+        assertEquals(1, preview(f.controller).targetCount)
+        f.db.close()
     }
 
     private suspend inline fun <reified T : WorkoutState> awaitState(

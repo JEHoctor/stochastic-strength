@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.ui.workout
 
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 
@@ -27,6 +28,12 @@ sealed interface WorkoutState {
         val repMin: Int = 5,
         val repMax: Int = 10,
         val detraining: DetrainingNotice? = null,
+        /** The exercise-count slider's value: the minimum plan size the app maintains. */
+        val targetCount: Int = WorkoutGenerator.DEFAULT_EXERCISE_COUNT,
+        /** Rows the user chose that the generator would have filtered out. */
+        val rowFlags: Map<Long, RowFlag> = emptyMap(),
+        /** True once the user has changed the plan (weight, order, add, load, append). */
+        val edited: Boolean = false,
     ) : WorkoutState
 
     data class Resting(
@@ -68,3 +75,5 @@ data class PendingSwap(
 
 /** Informational "you've been away — starting lighter" banner; carries no adjustable state. */
 data class DetrainingNotice(val weeksOff: Int)
+
+enum class RowFlag { NOT_AT_LOCATION, TRAINED_RECENTLY }
