@@ -86,6 +86,8 @@ class WorkoutRepository(
         val available = allActive.filter { it.id !in excluded }
         // Estimates and policy facts cover every active exercise so an explicit pick of a
         // location-excluded lift still gets a real weight; only generation is location-filtered.
+        // Location-excluded siblings therefore also vote in per-muscle pooling, so a lift's
+        // prescription no longer depends on which location the user is standing at.
         val seedCoef = allActive.associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) }
         val muscleIds = allActive.filter { (seedCoef[it.id] ?: 0f) > 0f }
             .groupBy { it.primaryMuscle }.mapValues { e -> e.value.map { it.id } }

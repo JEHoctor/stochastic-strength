@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.ui.savedworkouts
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -88,11 +89,18 @@ class SavedWorkoutEditViewModel(
         val hasPendingSave = saveJob?.isActive == true
         super.onCleared() // cancels viewModelScope
         if (hasPendingSave) {
-            CoroutineScope(Dispatchers.IO).launch { performSave() }
+            // Detached from viewModelScope: nothing above us can catch a throw (e.g. the workout
+            // was deleted underneath us), so it would take the process down.
+            CoroutineScope(Dispatchers.IO).launch {
+                runCatching { performSave() }
+                    .onFailure { Log.w(TAG, "saved-workout save after clear failed", it) }
+            }
         }
     }
 
     companion object {
+        private const val TAG = "SavedWorkoutEdit"
+
         fun factory(workoutId: Long): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {

@@ -32,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -45,7 +46,6 @@ import io.github.fowles.stochastic_strength.ui.components.SavedWorkoutPickerDial
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 @Composable
 fun WorkoutScreen(
@@ -143,6 +143,7 @@ fun WorkoutScreen(
                         onAppendWorkout = { dialog = PreviewDialog.APPEND },
                         onSaveWorkout = { dialog = PreviewDialog.SAVE },
                     )
+                    val locale = LocalConfiguration.current.locales[0]
                     when (dialog) {
                         PreviewDialog.ADD -> ExercisePickerSheet(
                             exercises = allExercises,
@@ -180,7 +181,7 @@ fun WorkoutScreen(
                         )
                         PreviewDialog.SAVE -> NameDialog(
                             title = "Save as workout",
-                            initial = "Workout " + SimpleDateFormat("MMM d", Locale.getDefault()).format(Date()),
+                            initial = "Workout " + SimpleDateFormat("MMM d", locale).format(Date()),
                             onConfirm = { name -> dialog = null; viewModel.saveCurrentPlan(name) },
                             onDismiss = { dialog = null },
                         )

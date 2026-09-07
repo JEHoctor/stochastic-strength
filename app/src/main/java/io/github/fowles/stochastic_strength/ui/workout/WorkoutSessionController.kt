@@ -63,6 +63,13 @@ class WorkoutSessionController(
     private var preferredRepMax: Int = 10
     private var targetCount: Int = WorkoutGenerator.DEFAULT_EXERCISE_COUNT
 
+    /**
+     * Exercises the user put in the plan on purpose (added by hand, or loaded from a saved
+     * workout). They survive a location refresh even when this location excludes them — the rule
+     * is that an explicit pick is flagged, never dropped.
+     */
+    private val explicitIds = mutableSetOf<Long>()
+
     private var restTimerJob: Job? = null
     private var timedSetTimerJob: Job? = null
     private var addExerciseJob: Job? = null
@@ -88,6 +95,7 @@ class WorkoutSessionController(
     ) {
         this.weightUnit = weightUnit
         this.sessionLocationId = locationId
+        explicitIds.clear()
         this.preferredRepMin = preferredRepMin
         this.preferredRepMax = preferredRepMax
         val p = repository.buildPlanner(locationId, weightUnit)
@@ -254,6 +262,7 @@ class WorkoutSessionController(
             val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
             if (current.plan.exercises.any { it.exercise.id == exerciseId }) return@launch
             val planned = p.planExplicit(exercise, reps = null, plan = current.plan)
+            explicitIds += exerciseId
             val newPlan = current.plan.copy(
                 exercises = current.plan.exercises + planned,
                 sessionRejectedIds = current.plan.sessionRejectedIds - exerciseId,
@@ -283,6 +292,7 @@ class WorkoutSessionController(
             // A loaded row wins over an existing row for the same exercise.
             val kept = if (append) basePlan.exercises.filter { it.exercise.id !in loadedIds } else emptyList()
             val loaded = entries.map { p.planExplicit(it.exercise, it.reps, basePlan) }
+            explicitIds += loadedIds
             val newPlan = basePlan.copy(
                 exercises = kept + loaded,
                 sessionRejectedIds = basePlan.sessionRejectedIds - loadedIds,
@@ -494,7 +504,9 @@ class WorkoutSessionController(
             var plan = preview.plan
             var i = 0
             while (i < plan.exercises.size) {
-                if (plan.exercises[i].exercise.id !in availableIds) {
+                val id = plan.exercises[i].exercise.id
+                // An explicitly chosen row is flagged, not dropped, even where it's unavailable.
+                if (id !in availableIds && id !in explicitIds) {
                     val replacement = freshPlanner.pickReplacement(plan, i)
                     val updated = plan.exercises.toMutableList()
                     if (replacement != null) {

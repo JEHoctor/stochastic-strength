@@ -15,6 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutDetail
 
+/** "1 exercise" / "3 exercises" — shared by every saved-workout list. */
+fun exerciseCountLabel(n: Int): String = "$n exercise" + if (n == 1) "" else "s"
+
 @Composable
 fun SavedWorkoutPickerDialog(
     title: String,
@@ -39,7 +42,7 @@ fun SavedWorkoutPickerDialog(
                         ) {
                             Text(w.name, style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                "${w.entries.size} exercises",
+                                exerciseCountLabel(w.entries.size),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

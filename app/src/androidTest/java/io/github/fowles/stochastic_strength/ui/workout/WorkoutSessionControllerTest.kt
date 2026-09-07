@@ -6,6 +6,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
@@ -105,7 +106,11 @@ class WorkoutSessionControllerTest {
         val db: AppDatabase, val repo: WorkoutRepository, val controller: WorkoutSessionController,
     )
 
-    private suspend fun previewFixture(count: Int): PreviewFixture {
+    private suspend fun previewFixture(
+        count: Int,
+        // Runs once the exercises exist; returns the location to start the session at.
+        locationSetup: (suspend (AppDatabase, WorkoutRepository) -> Long)? = null,
+    ): PreviewFixture {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries().build()
@@ -128,9 +133,10 @@ class WorkoutSessionControllerTest {
                 active.associate { it.id to Belief(bestGuessLn = kotlin.math.ln(100f), uncertainty = 4e-4f, updatedAt = now) }
             )
         }
+        val locationId = locationSetup?.invoke(freshDb, freshRepo)
         val c = WorkoutSessionController(freshDb, freshRepo, WorkoutSessionBus(), scope)
         c.initializeSession(
-            locationId = null, locationName = null,
+            locationId = locationId, locationName = null,
             preferredExerciseCount = count, preferredRepMin = 5, preferredRepMax = 10,
             weightUnit = WeightUnit.KG,
         )
@@ -163,6 +169,32 @@ class WorkoutSessionControllerTest {
     }
 
     private fun preview(c: WorkoutSessionController) = c.state.value as WorkoutState.PlanPreview
+
+    @Test
+    fun locationRefresh_keepsExplicitlyAddedExcludedRow() = runBlocking {
+        var excludedId = 0L
+        val f = previewFixture(count = 2) { freshDb, freshRepo ->
+            val locationId = freshDb.knownLocationDao().insert(
+                KnownLocation(name = "Home", latitude = 0.0, longitude = 0.0)
+            )
+            excludedId = freshDb.exerciseDao().getActive().first { it.name == "Barbell Row" }.id
+            freshRepo.excludeExercise(locationId, excludedId)
+            locationId
+        }
+        assertTrue(preview(f.controller).plan.exercises.none { it.exercise.id == excludedId })
+
+        f.controller.addExercise(excludedId)
+        awaitPreview(f.controller) { p -> p.plan.exercises.any { it.exercise.id == excludedId } }
+        assertEquals(RowFlag.NOT_AT_LOCATION, preview(f.controller).rowFlags[excludedId])
+
+        f.controller.onLocationRefreshed()
+        delay(300)
+        assertTrue(
+            "Explicitly added, location-excluded row was dropped by the refresh",
+            preview(f.controller).plan.exercises.any { it.exercise.id == excludedId },
+        )
+        f.db.close()
+    }
 
     @Test
     fun replace_atTarget_restocks() = runBlocking {
