@@ -179,7 +179,7 @@ class WorkoutSessionController(
                 p.pickReplacement(updatedPlan, currentIndex) else null
             val newExercises = updatedPlan.exercises.toMutableList()
             if (replacement != null) newExercises[currentIndex] = replacement else newExercises.removeAt(currentIndex)
-            setState(current.copy(plan = updatedPlan.copy(exercises = newExercises)))
+            setState(prunedToPlanRows(current.copy(plan = updatedPlan.copy(exercises = newExercises))))
         }
     }
 
@@ -191,7 +191,9 @@ class WorkoutSessionController(
         when {
             targetCount < current.size -> {
                 val trimmed = current.take(targetCount)
-                setState(preview.copy(plan = preview.plan.copy(exercises = trimmed), targetCount = targetCount))
+                setState(prunedToPlanRows(
+                    preview.copy(plan = preview.plan.copy(exercises = trimmed), targetCount = targetCount)
+                ))
             }
             targetCount > current.size -> {
                 val needed = targetCount - current.size
@@ -297,7 +299,8 @@ class WorkoutSessionController(
                 exercises = kept + loaded,
                 sessionRejectedIds = basePlan.sessionRejectedIds - loadedIds,
             )
-            setState(withRowFlags(current.copy(plan = newPlan, edited = true)))
+            // A load replaces the plan wholesale, so rows that were explicit before can depart here.
+            setState(withRowFlags(prunedToPlanRows(current.copy(plan = newPlan, edited = true))))
         }
     }
 
@@ -309,6 +312,17 @@ class WorkoutSessionController(
             name = name,
             entries = preview.plan.exercises.map { SavedWorkoutEntry(it.exercise, reps = null) },
         )
+    }
+
+    /**
+     * Drops the bookkeeping for rows that have left the plan, so [explicitIds] and
+     * [WorkoutState.PlanPreview.rowFlags] stay a faithful projection of the rows on screen.
+     */
+    private fun prunedToPlanRows(preview: WorkoutState.PlanPreview): WorkoutState.PlanPreview {
+        val presentIds = preview.plan.exercises.mapTo(mutableSetOf()) { it.exercise.id }
+        explicitIds.retainAll(presentIds)
+        if (preview.rowFlags.keys.all { it in presentIds }) return preview
+        return preview.copy(rowFlags = preview.rowFlags.filterKeys { it in presentIds })
     }
 
     /** Flags rows the generator would have filtered: location-excluded first, then unrested muscle. */
@@ -500,8 +514,10 @@ class WorkoutSessionController(
             val locationName = database.knownLocationDao().getById(locationId)?.name
             val freshPlanner = repository.buildPlanner(locationId, weightUnit, preview.plan.effectiveOverrides)
             planner = freshPlanner
+            // Re-read state: an add/load may have landed while the lookups above suspended.
+            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
             val availableIds = freshPlanner.availableExercises.map { it.id }.toSet()
-            var plan = preview.plan
+            var plan = current.plan
             var i = 0
             while (i < plan.exercises.size) {
                 val id = plan.exercises[i].exercise.id
@@ -519,9 +535,12 @@ class WorkoutSessionController(
                 }
                 i++
             }
-            if (plan != preview.plan || locationName != preview.locationName) {
-                setState(preview.copy(plan = plan, locationName = locationName))
-            }
+            // Flags can change even when the rows don't (this location now excludes an explicit
+            // row, or no longer does), so compare the fully rebuilt preview.
+            val refreshed = withRowFlags(
+                prunedToPlanRows(current.copy(plan = plan, locationName = locationName))
+            )
+            if (refreshed != current) setState(refreshed)
         }
     }
 

@@ -7,7 +7,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 ## Open — needs triage
 
 ### From explicit-workout-control (2026-09-07) final review, deferred
-- WorkoutSessionController: `rowFlags` and `explicitIds` are never pruned when rows leave the plan (trim/replace); fails safe, but not a faithful projection. Also flags are not recomputed in `onLocationRefreshed`, so a mid-preview location change can leave a stale label.
 - WorkoutSessionController.adjustExerciseCount: lowering the slider trims explicitly added/loaded rows from the tail (spec'd "trim regardless of origin"); consider trim-last for explicit rows or a confirm when dropping >1 row.
 - SavedWorkoutsViewModel.createNew: no in-flight guard (FAB double-tap creates two "Untitled workout" rows); backing out of a fresh editor leaves an empty workout.
 - SavedWorkoutEditViewModel: a deleted/missing workout id leaves the editor on the spinner (no error state).

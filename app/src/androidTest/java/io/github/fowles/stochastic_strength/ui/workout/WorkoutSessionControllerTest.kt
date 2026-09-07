@@ -197,6 +197,61 @@ class WorkoutSessionControllerTest {
     }
 
     @Test
+    fun locationRefresh_recomputesRowFlags() = runBlocking {
+        var locationId = 0L
+        val f = previewFixture(count = 2) { freshDb, _ ->
+            locationId = freshDb.knownLocationDao().insert(
+                KnownLocation(name = "Home", latitude = 0.0, longitude = 0.0)
+            )
+            locationId
+        }
+        val addedId = f.db.exerciseDao().getActive().first { ex ->
+            preview(f.controller).plan.exercises.none { it.exercise.id == ex.id }
+        }.id
+        f.controller.addExercise(addedId)
+        awaitPreview(f.controller) { p -> p.plan.exercises.any { it.exercise.id == addedId } }
+        assertNull("nothing excludes it yet", preview(f.controller).rowFlags[addedId])
+
+        f.repo.excludeExercise(locationId, addedId)
+        // The rename gives the refresh an observable completion signal.
+        f.db.knownLocationDao().updateName(locationId, "Gym")
+        f.controller.onLocationRefreshed()
+        awaitPreview(f.controller) { it.locationName == "Gym" }
+
+        val p = preview(f.controller)
+        assertEquals(RowFlag.NOT_AT_LOCATION, p.rowFlags[addedId])
+        assertTrue(
+            "Explicitly added row must survive the refresh",
+            p.plan.exercises.any { it.exercise.id == addedId },
+        )
+        f.db.close()
+    }
+
+    @Test
+    fun trim_prunesRowFlags() = runBlocking {
+        var excludedId = 0L
+        val f = previewFixture(count = 2) { freshDb, freshRepo ->
+            val locationId = freshDb.knownLocationDao().insert(
+                KnownLocation(name = "Home", latitude = 0.0, longitude = 0.0)
+            )
+            excludedId = freshDb.exerciseDao().getActive().first { it.name == "Barbell Row" }.id
+            freshRepo.excludeExercise(locationId, excludedId)
+            locationId
+        }
+        f.controller.addExercise(excludedId)
+        awaitPreview(f.controller) { p -> p.plan.exercises.any { it.exercise.id == excludedId } }
+        assertEquals(RowFlag.NOT_AT_LOCATION, preview(f.controller).rowFlags[excludedId])
+
+        f.controller.adjustExerciseCount(2)
+        awaitPreviewSize(f.controller, 2)
+
+        val p = preview(f.controller)
+        assertTrue("trimmed row still in plan", p.plan.exercises.none { it.exercise.id == excludedId })
+        assertNull("flag for a trimmed row was not pruned", p.rowFlags[excludedId])
+        f.db.close()
+    }
+
+    @Test
     fun replace_atTarget_restocks() = runBlocking {
         val f = previewFixture(count = 2)
         val removedId = preview(f.controller).plan.exercises[0].exercise.id
