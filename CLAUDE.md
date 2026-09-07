@@ -91,6 +91,10 @@ The backtest tree (`app/src/test/.../backtest/`) replays real history (`src/test
 
 On workout start, `LocationService` resolves GPS coordinates to a `KnownLocation`. `WorkoutRepository.buildPlanner` filters out exercises listed in `LocationExcludedExercise` for that location. If location is unknown, no exclusions are applied.
 
+### Saved workouts and explicit control
+
+`saved_workout` / `saved_workout_exercise` (DB v20) hold user-authored workouts: ordered exercises with optional per-row reps. `WorkoutRepository` exposes `observeSavedWorkouts`, `saveWorkout`, `deleteSavedWorkout`, and `saveSessionAsWorkout`; the backup export includes both tables. On plan preview the "⋮" menu can add one exercise, load or append a saved workout, or save the plan. Explicit rows bypass the rested-muscle and location filters (`WorkoutPlanner.planExplicit`) and are flagged in the UI, never dropped. Plan rows carry no origin flag: the exercise-count slider is a **minimum** the controller maintains (restock on swipe-away only when the plan would fall below `targetCount`), and the rep-range slider reprices every row.
+
 ### Database
 
-Room database (`AppDatabase`, version 19). Schema migrations live in `AppDatabase.Companion`. The app has real users — always write a proper `Migration` when bumping the version; destructive fallback is not configured.
+Room database (`AppDatabase`, version 20). Schema migrations live in `AppDatabase.Companion`. The app has real users — always write a proper `Migration` when bumping the version; destructive fallback is not configured.
