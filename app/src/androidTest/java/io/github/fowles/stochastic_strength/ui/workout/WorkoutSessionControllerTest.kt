@@ -252,6 +252,25 @@ class WorkoutSessionControllerTest {
     }
 
     @Test
+    fun lowerCount_trimsFromTailRegardlessOfOrigin() = runBlocking {
+        val f = previewFixture(count = 1)
+        val all = f.db.exerciseDao().getActive()
+        f.controller.loadSavedWorkout(f.repo.saveWorkout(null, "Trio", all.map { SavedWorkoutEntry(it, null) }))
+        awaitPreviewSize(f.controller, 3)
+        assertEquals(all.map { it.id }, preview(f.controller).plan.exercises.map { it.exercise.id })
+
+        f.controller.adjustExerciseCount(2)
+        awaitPreviewSize(f.controller, 2)
+
+        assertEquals(
+            "lowering the slider drops the tail row, explicit or not",
+            all.take(2).map { it.id },
+            preview(f.controller).plan.exercises.map { it.exercise.id },
+        )
+        f.db.close()
+    }
+
+    @Test
     fun replace_atTarget_restocks() = runBlocking {
         val f = previewFixture(count = 2)
         val removedId = preview(f.controller).plan.exercises[0].exercise.id
