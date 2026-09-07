@@ -61,14 +61,7 @@ data class SavedWorkout(
     val createdAt: Long,
 )
 
-@Entity(
-    tableName = "saved_workout_exercise",
-    foreignKeys = [
-        ForeignKey(SavedWorkout::class, ["id"], ["workoutId"], onDelete = CASCADE),
-        ForeignKey(Exercise::class, ["id"], ["exerciseId"], onDelete = CASCADE),
-    ],
-    indices = [Index("workoutId"), Index("exerciseId")],
-)
+@Entity(tableName = "saved_workout_exercise", indices = [Index("workoutId")])
 data class SavedWorkoutExercise(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val workoutId: Long,
@@ -97,8 +90,9 @@ data class SavedWorkoutDetail(val id: Long, val name: String, val entries: List<
 `WorkoutRepository` wrappers: `observeSavedWorkouts(): Flow<List<SavedWorkoutDetail>>`,
 `getSavedWorkout(id)`, `saveWorkout(id: Long?, name, entries): Long`,
 `deleteSavedWorkout(id)`. Entries resolve `Exercise` rows through the exercise
-DAO so UI never joins by hand. A saved row whose exercise has since been
-deleted is dropped by the cascade.
+DAO so UI never joins by hand. No foreign keys, matching every existing table;
+a saved row whose exercise no longer exists is dropped at read time, and
+`delete(id)` removes the workout's rows in the same transaction.
 
 ## Planner
 
@@ -116,8 +110,15 @@ repository, and the planner prescribes from `prescribedE1rm` (falling back to
 the same cold path `withWeight` already uses for exercises without an
 estimate).
 
-Location-excluded exercises are absent from `prescriptionContext.available`,
-so the controller fetches them by id from the repository for `planExplicit`.
+Location-excluded exercises are absent from `prescriptionContext.available`
+and today have no `prescribedE1rm` entry. `WorkoutRepository.buildPlanner`
+changes to compute `prescribedE1rm` and `policyFacts` over **all active**
+exercises while `availableExercises` stays location-filtered, so an explicit
+pick of an excluded exercise still gets a real weight. The controller fetches
+the `Exercise` by id from the repository for `planExplicit`.
+
+`WorkoutPlanner.isMuscleRested(exercise)` becomes public so the controller can
+flag unrested rows.
 
 ## Controller
 
@@ -187,9 +188,8 @@ extracted chip composable so the two filters stay identical.
 - Home gets a "Workouts" `OutlinedButton` alongside History / Exercises /
   Locations.
 - Route `workouts`: `SavedWorkoutsScreen` with `BackTopAppBar`, a list of saved
-  workouts (name, exercise count), tap to edit, swipe-to-delete with a
-  snackbar undo, and a FAB that creates a new empty workout and opens the
-  editor.
+  workouts (name, exercise count), tap to edit, a delete icon per row, and
+  a FAB that creates a new empty workout and opens the editor.
 - Route `workout-edit/{id}`: `SavedWorkoutEditScreen` with a name field, a
   reorderable list (same `sh.calvin.reorderable` pattern as the preview),
   swipe-to-delete rows, tap a row for a reps dialog (number field plus "Use
