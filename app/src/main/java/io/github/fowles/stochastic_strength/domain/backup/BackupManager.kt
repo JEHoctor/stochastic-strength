@@ -9,6 +9,7 @@ data class AdditiveResult(
     val exercisesCreated: Int,
     val locationsCreated: Int,
     val setsSkipped: Int,
+    val savedWorkoutsAdded: Int = 0,
 )
 
 class BackupManager(
@@ -29,6 +30,8 @@ class BackupManager(
             userProfile = db.userProfileDao().getAll(),
             baselineOverrides = db.baselineOverrideDao().getAll(),
             exerciseHurtState = db.exerciseHurtStateDao().getAll(),
+            savedWorkouts = db.savedWorkoutDao().getAll(),
+            savedWorkoutExercises = db.savedWorkoutDao().getAllExerciseRows(),
         )
     }
 
@@ -41,6 +44,8 @@ class BackupManager(
             db.baselineOverrideDao().deleteAll()
             db.locationExcludedExerciseDao().deleteAll()
             db.userProfileDao().deleteAll()
+            db.savedWorkoutDao().deleteAllExerciseRows()
+            db.savedWorkoutDao().deleteAll()
             db.exerciseDao().deleteAll()
             db.knownLocationDao().deleteAll()
 
@@ -52,6 +57,8 @@ class BackupManager(
             backup.userProfile.forEach { db.userProfileDao().insert(it) }
             backup.baselineOverrides.forEach { db.baselineOverrideDao().insert(it) }
             backup.exerciseHurtState.forEach { db.exerciseHurtStateDao().upsert(it) }
+            backup.savedWorkouts.forEach { db.savedWorkoutDao().insert(it) }
+            db.savedWorkoutDao().insertExerciseRows(backup.savedWorkoutExercises)
         }
         repository.replayDerivedState()
     }
@@ -67,6 +74,7 @@ class BackupManager(
         var locationsCreated = 0
         var setsSkipped = 0
         var sessionsAdded = 0
+        var savedWorkoutsAdded = 0
 
         db.withTransaction {
             // name -> local exercise id
@@ -113,8 +121,24 @@ class BackupManager(
                     )
                 }
             }
+
+            val localWorkoutNames = db.savedWorkoutDao().getAll().map { it.name }.toMutableSet()
+            val rowsByWorkout = backup.savedWorkoutExercises.groupBy { it.workoutId }
+            for (workout in backup.savedWorkouts) {
+                if (workout.name in localWorkoutNames) continue
+                val newId = db.savedWorkoutDao().insert(workout.copy(id = 0))
+                localWorkoutNames += workout.name
+                savedWorkoutsAdded++
+                val rows = rowsByWorkout[workout.id].orEmpty().sortedBy { it.position }
+                    .mapNotNull { r ->
+                        val exerciseId = resolveExerciseId(r.exerciseId) ?: return@mapNotNull null
+                        r.copy(id = 0, workoutId = newId, exerciseId = exerciseId)
+                    }
+                    .mapIndexed { i, r -> r.copy(position = i) }
+                db.savedWorkoutDao().insertExerciseRows(rows)
+            }
         }
         repository.replayDerivedState()
-        return AdditiveResult(sessionsAdded, exercisesCreated, locationsCreated, setsSkipped)
+        return AdditiveResult(sessionsAdded, exercisesCreated, locationsCreated, setsSkipped, savedWorkoutsAdded)
     }
 }

@@ -150,7 +150,8 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
                     ImportMode.ADDITIVE -> {
                         val r = app.backupManager.importAdditive(backup)
                         "Imported ${r.sessionsAdded} sessions (" +
-                            "${r.exercisesCreated} new exercises, ${r.setsSkipped} sets skipped)."
+                            "${r.exercisesCreated} new exercises, ${r.setsSkipped} sets skipped, " +
+                            "${r.savedWorkoutsAdded} saved workouts)."
                     }
                 }
                 reloadInternal(summary)

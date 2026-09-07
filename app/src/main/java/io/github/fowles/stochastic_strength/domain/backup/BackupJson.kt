@@ -8,6 +8,8 @@ import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.data.model.SavedWorkout
+import io.github.fowles.stochastic_strength.data.model.SavedWorkoutExercise
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
@@ -51,6 +53,8 @@ object BackupJsonBuilder {
             .put("userProfile", JSONArray().apply { backup.userProfile.forEach { put(profileObj(it)) } })
             .put("baselineOverrides", JSONArray().apply { backup.baselineOverrides.forEach { put(baselineObj(it)) } })
             .put("exerciseHurtState", JSONArray().apply { backup.exerciseHurtState.forEach { put(hurtObj(it)) } })
+            .put("savedWorkouts", JSONArray().apply { backup.savedWorkouts.forEach { put(savedWorkoutObj(it)) } })
+            .put("savedWorkoutExercises", JSONArray().apply { backup.savedWorkoutExercises.forEach { put(savedWorkoutExerciseObj(it)) } })
         return JSONObject()
             .put("format", WorkoutBackup.FORMAT)
             .put("formatVersion", backup.formatVersion)
@@ -102,6 +106,13 @@ object BackupJsonBuilder {
     private fun hurtObj(h: ExerciseHurtState) = obj(
         "exerciseId" to h.exerciseId, "isHurt" to h.isHurt, "asOf" to h.asOf,
     )
+
+    private fun savedWorkoutObj(w: SavedWorkout) = obj("id" to w.id, "name" to w.name, "createdAt" to w.createdAt)
+
+    private fun savedWorkoutExerciseObj(r: SavedWorkoutExercise) = obj(
+        "id" to r.id, "workoutId" to r.workoutId, "exerciseId" to r.exerciseId,
+        "position" to r.position, "reps" to r.reps,
+    )
 }
 
 object BackupJsonParser {
@@ -136,6 +147,8 @@ object BackupJsonParser {
                 userProfile = tables.getJSONArray("userProfile").map { profile(it) },
                 baselineOverrides = tables.getJSONArray("baselineOverrides").map { baseline(it) },
                 exerciseHurtState = tables.getJSONArray("exerciseHurtState").map { hurt(it) },
+                savedWorkouts = tables.optJSONArray("savedWorkouts")?.map { savedWorkout(it) } ?: emptyList(),
+                savedWorkoutExercises = tables.optJSONArray("savedWorkoutExercises")?.map { savedWorkoutExercise(it) } ?: emptyList(),
             )
         } catch (e: JSONException) {
             throw BackupFormatException("Malformed backup contents: ${e.message}")
@@ -192,5 +205,14 @@ object BackupJsonParser {
 
     private fun hurt(o: JSONObject) = ExerciseHurtState(
         exerciseId = o.getLong("exerciseId"), isHurt = o.getBoolean("isHurt"), asOf = o.getLong("asOf"),
+    )
+
+    private fun savedWorkout(o: JSONObject) = SavedWorkout(
+        id = o.getLong("id"), name = o.getString("name"), createdAt = o.getLong("createdAt"),
+    )
+
+    private fun savedWorkoutExercise(o: JSONObject) = SavedWorkoutExercise(
+        id = o.getLong("id"), workoutId = o.getLong("workoutId"), exerciseId = o.getLong("exerciseId"),
+        position = o.getInt("position"), reps = o.intOrNull("reps"),
     )
 }

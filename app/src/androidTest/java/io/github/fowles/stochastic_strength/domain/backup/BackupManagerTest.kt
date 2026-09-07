@@ -7,6 +7,8 @@ import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.data.model.SavedWorkout
+import io.github.fowles.stochastic_strength.data.model.SavedWorkoutExercise
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
@@ -129,5 +131,58 @@ class BackupManagerTest {
         // Local profile preserved (KG/MALE), not overwritten by the backup's LBS/FEMALE.
         assertEquals(io.github.fowles.stochastic_strength.data.model.WeightUnit.KG,
             db.userProfileDao().getProfile()!!.weightUnit)
+    }
+
+    @Test
+    fun export_includesSavedWorkouts_andDestructiveImportRestoresThem() = runBlocking {
+        seed()
+        val wid = db.savedWorkoutDao().insert(SavedWorkout(name = "Push", createdAt = 1))
+        db.savedWorkoutDao().insertExerciseRows(listOf(
+            SavedWorkoutExercise(workoutId = wid, exerciseId = 1, position = 0, reps = 5),
+        ))
+        val backup = manager.export()
+        assertEquals(1, backup.savedWorkouts.size)
+        assertEquals(1, backup.savedWorkoutExercises.size)
+
+        db.savedWorkoutDao().deleteAllExerciseRows()
+        db.savedWorkoutDao().deleteAll()
+        manager.importDestructive(backup)
+        assertEquals(backup.savedWorkouts, db.savedWorkoutDao().getAll())
+        assertEquals(backup.savedWorkoutExercises, db.savedWorkoutDao().getAllExerciseRows())
+    }
+
+    @Test
+    fun additiveImport_remapsSavedWorkoutExercisesByName_andSkipsSameName() = runBlocking {
+        val localBench = db.exerciseDao().insert(Exercise(id = 0, name = "Bench Press",
+            primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL))
+        db.savedWorkoutDao().insert(SavedWorkout(name = "Already here", createdAt = 1))
+
+        val backup = WorkoutBackup(
+            formatVersion = WorkoutBackup.FORMAT_VERSION, dbVersion = WorkoutBackup.DB_VERSION,
+            exportedAt = 0,
+            exercises = listOf(
+                Exercise(id = 5, name = "Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            ),
+            knownLocations = emptyList(), locationExcludedExercises = emptyList(),
+            workoutSessions = emptyList(), workoutSets = emptyList(), userProfile = emptyList(),
+            baselineOverrides = emptyList(), exerciseHurtState = emptyList(),
+            savedWorkouts = listOf(
+                SavedWorkout(id = 9, name = "Already here", createdAt = 2),
+                SavedWorkout(id = 10, name = "New one", createdAt = 3),
+            ),
+            savedWorkoutExercises = listOf(
+                SavedWorkoutExercise(workoutId = 10, exerciseId = 5, position = 0, reps = 8),
+                SavedWorkoutExercise(workoutId = 10, exerciseId = 999, position = 1, reps = null), // unresolvable
+            ),
+        )
+        val result = manager.importAdditive(backup)
+        assertEquals(1, result.savedWorkoutsAdded)
+        val all = db.savedWorkoutDao().getAll()
+        assertEquals(listOf("Already here", "New one"), all.map { it.name })
+        val newId = all.first { it.name == "New one" }.id
+        val rows = db.savedWorkoutDao().getExerciseRows(newId)
+        assertEquals(1, rows.size)
+        assertEquals(localBench, rows[0].exerciseId)
+        assertEquals(8, rows[0].reps)
     }
 }
