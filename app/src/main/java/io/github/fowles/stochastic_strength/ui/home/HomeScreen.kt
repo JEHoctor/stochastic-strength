@@ -41,6 +41,7 @@ fun HomeScreen(
     onStartWorkout: () -> Unit,
     onHistory: () -> Unit,
     onExercises: () -> Unit,
+    onWorkouts: () -> Unit,
     onLocations: () -> Unit,
     onAbout: () -> Unit,
     viewModel: HomeViewModel = viewModel(),
@@ -80,6 +81,7 @@ fun HomeScreen(
                     },
                     onHistory = onHistory,
                     onExercises = onExercises,
+                    onWorkouts = onWorkouts,
                     onLocations = onLocations,
                     onAbout = onAbout,
                     modifier = Modifier
@@ -96,6 +98,7 @@ private fun ReadyContent(
     onStart: () -> Unit,
     onHistory: () -> Unit,
     onExercises: () -> Unit,
+    onWorkouts: () -> Unit,
     onLocations: () -> Unit,
     onAbout: () -> Unit,
     modifier: Modifier = Modifier,
@@ -123,6 +126,10 @@ private fun ReadyContent(
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onExercises, modifier = Modifier.fillMaxWidth()) {
             Text("Exercises")
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onWorkouts, modifier = Modifier.fillMaxWidth()) {
+            Text("Workouts")
         }
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onLocations, modifier = Modifier.fillMaxWidth()) {

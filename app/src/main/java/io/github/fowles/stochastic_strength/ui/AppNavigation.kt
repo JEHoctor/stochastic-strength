@@ -16,6 +16,8 @@ import io.github.fowles.stochastic_strength.ui.history.HistoryScreen
 import io.github.fowles.stochastic_strength.ui.home.HomeScreen
 import io.github.fowles.stochastic_strength.ui.locations.LocationEditScreen
 import io.github.fowles.stochastic_strength.ui.locations.LocationsScreen
+import io.github.fowles.stochastic_strength.ui.savedworkouts.SavedWorkoutEditScreen
+import io.github.fowles.stochastic_strength.ui.savedworkouts.SavedWorkoutsScreen
 import io.github.fowles.stochastic_strength.ui.summary.SummaryScreen
 import io.github.fowles.stochastic_strength.ui.workout.WorkoutScreen
 
@@ -35,6 +37,7 @@ fun AppNavigation() {
                 onStartWorkout = { navController.navigate("workout") },
                 onHistory = { navController.navigate("history") },
                 onExercises = { navController.navigate("exercises") },
+                onWorkouts = { navController.navigate("workouts") },
                 onLocations = { navController.navigate("locations") },
                 onAbout = { navController.navigate("about") },
             )
@@ -58,6 +61,21 @@ fun AppNavigation() {
             HistoryScreen(
                 onSessionTap = { sessionId -> navController.navigate("summary/$sessionId") },
                 onExerciseTap = { exerciseId -> navController.navigate("exercise/$exerciseId") },
+                onBack = { navController.popBackStackIfResumed() },
+            )
+        }
+        composable("workouts") {
+            SavedWorkoutsScreen(
+                onWorkoutTap = { id -> navController.navigate("workout-edit/$id") },
+                onBack = { navController.popBackStackIfResumed() },
+            )
+        }
+        composable(
+            route = "workout-edit/{workoutId}",
+            arguments = listOf(navArgument("workoutId") { type = NavType.LongType }),
+        ) { backStackEntry ->
+            SavedWorkoutEditScreen(
+                workoutId = backStackEntry.arguments!!.getLong("workoutId"),
                 onBack = { navController.popBackStackIfResumed() },
             )
         }
