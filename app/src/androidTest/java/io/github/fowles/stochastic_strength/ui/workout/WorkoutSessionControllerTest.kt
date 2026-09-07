@@ -173,8 +173,9 @@ class WorkoutSessionControllerTest {
     @Test
     fun locationRefresh_keepsExplicitlyAddedExcludedRow() = runBlocking {
         var excludedId = 0L
+        var locationId = 0L
         val f = previewFixture(count = 2) { freshDb, freshRepo ->
-            val locationId = freshDb.knownLocationDao().insert(
+            locationId = freshDb.knownLocationDao().insert(
                 KnownLocation(name = "Home", latitude = 0.0, longitude = 0.0)
             )
             excludedId = freshDb.exerciseDao().getActive().first { it.name == "Barbell Row" }.id
@@ -187,12 +188,17 @@ class WorkoutSessionControllerTest {
         awaitPreview(f.controller) { p -> p.plan.exercises.any { it.exercise.id == excludedId } }
         assertEquals(RowFlag.NOT_AT_LOCATION, preview(f.controller).rowFlags[excludedId])
 
+        // The rename gives the refresh an observable completion signal.
+        f.db.knownLocationDao().updateName(locationId, "Home 2")
         f.controller.onLocationRefreshed()
-        delay(300)
+        awaitPreview(f.controller) { it.locationName == "Home 2" }
+
+        val p = preview(f.controller)
         assertTrue(
             "Explicitly added, location-excluded row was dropped by the refresh",
-            preview(f.controller).plan.exercises.any { it.exercise.id == excludedId },
+            p.plan.exercises.any { it.exercise.id == excludedId },
         )
+        assertEquals(RowFlag.NOT_AT_LOCATION, p.rowFlags[excludedId])
         f.db.close()
     }
 
