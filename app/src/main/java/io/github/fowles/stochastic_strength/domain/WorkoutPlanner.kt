@@ -48,7 +48,7 @@ class WorkoutPlanner(
     }
 
     fun generateWorkout(sessionReps: Int): WorkoutPlan {
-        val plannable = availableExercises.filter { muscleGroupRested(it) }
+        val plannable = availableExercises.filter { isMuscleRested(it) }
         val exercises = WorkoutGenerator.generate(WorkoutGenerator.Input(plannable, random))
             .map { withWeight(it, sessionReps) }
         return WorkoutPlan(exercises = exercises, locationId = locationId, sessionReps = sessionReps)
@@ -86,6 +86,15 @@ class WorkoutPlanner(
 
     fun pickAdditional(plan: WorkoutPlan): PlannedExercise? =
         pickFrom(candidatesFor(plan, plan.exercises), plan.exercises, plan.sessionReps)
+
+    /**
+     * Price one explicitly chosen exercise. Skips the rested-muscle and in-plan/rejected filters —
+     * the user asked for it — but prescribes through the same policy as any generated row.
+     * The exercise need not be in [availableExercises]; it only needs a `prescribedE1rm` entry
+     * (or a coefficient of zero, in which case it is unloaded like any bodyweight row).
+     */
+    fun planExplicit(exercise: Exercise, reps: Int?, plan: WorkoutPlan): PlannedExercise =
+        withWeight(PlannedExercise(exercise = exercise), reps ?: plan.sessionReps)
 
     private fun isLoaded(exercise: Exercise): Boolean =
         coefficientSource.get(exercise)?.let { it > 0f } ?: false
@@ -235,13 +244,13 @@ class WorkoutPlanner(
     private fun Exercise.isFloorDeadlift(): Boolean =
         equipment == Equipment.BARBELL && name.contains("deadlift", ignoreCase = true)
 
-    private fun muscleGroupRested(exercise: Exercise): Boolean =
+    fun isMuscleRested(exercise: Exercise): Boolean =
         exercise.equipment == Equipment.BODYWEIGHT || exercise.primaryMuscle !in recentlyFailedMuscles
 
     private fun candidatesFor(plan: WorkoutPlan, currentExercises: List<PlannedExercise>): List<Exercise> {
         val inPlan = currentExercises.map { it.exercise.id }.toSet()
         val excluded = inPlan + plan.sessionRejectedIds
-        return availableExercises.filter { it.id !in excluded && muscleGroupRested(it) }
+        return availableExercises.filter { it.id !in excluded && isMuscleRested(it) }
     }
 
     private fun withWeight(pe: PlannedExercise, sessionReps: Int): PlannedExercise {

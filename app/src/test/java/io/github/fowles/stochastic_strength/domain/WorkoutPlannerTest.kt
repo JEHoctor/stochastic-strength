@@ -908,4 +908,51 @@ class WorkoutPlannerTest {
         val w = p.weightForExerciseTest(ex, sessionReps = 10)
         assertTrue("manual override is the user's decision; policy must not cap it", w > 35f)
     }
+
+    @Test
+    fun planExplicit_pricesExerciseWhoseMuscleIsNotRested() {
+        val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
+        val now = System.currentTimeMillis()
+        val p = planner(
+            exercises = listOf(chest),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f),
+            recentHistory = mapOf(1L to listOf(nearFailureSet(1L, now - 1000), nearFailureSet(1L, now - 2000))),
+            nowMs = now,
+        )
+        assertTrue(!p.isMuscleRested(chest))
+        assertTrue(p.generateWorkout(sessionReps = 8).exercises.isEmpty())
+
+        val planned = p.planExplicit(chest, reps = null, plan = WorkoutPlan(emptyList(), null, sessionReps = 8))
+        assertEquals(chest, planned.exercise)
+        assertEquals(8, planned.sessionReps)
+        assertTrue(planned.sessionWeight > 0f)
+    }
+
+    @Test
+    fun planExplicit_usesPinnedReps_elsePlanSessionReps() {
+        val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
+        val p = planner(exercises = listOf(chest), strengths = strengthsFor(MuscleGroup.CHEST to 100f))
+        val plan = WorkoutPlan(emptyList(), null, sessionReps = 10)
+        assertEquals(5, p.planExplicit(chest, reps = 5, plan = plan).sessionReps)
+        assertEquals(10, p.planExplicit(chest, reps = null, plan = plan).sessionReps)
+        // Fewer reps at the same e1rm means a heavier set.
+        assertTrue(p.planExplicit(chest, 5, plan).sessionWeight > p.planExplicit(chest, 10, plan).sessionWeight)
+    }
+
+    @Test
+    fun planExplicit_pricesExerciseOutsideAvailableList_whenItHasAnEstimate() {
+        val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
+        val excludedHere = exercise(2, "Incline Barbell Bench Press", MuscleGroup.CHEST)
+        val p = WorkoutPlanner(
+            availableExercises = listOf(chest),
+            prescribedE1rm = strengthsToPrescribedE1rm(listOf(chest, excludedHere), strengthsFor(MuscleGroup.CHEST to 100f), ExerciseCoefficients),
+            recentHistory = emptyMap(),
+            weightUnit = WeightUnit.KG,
+            locationId = null,
+            random = Random(0),
+        )
+        val planned = p.planExplicit(excludedHere, null, WorkoutPlan(emptyList(), null, sessionReps = 8))
+        assertTrue(planned.sessionWeight > 0f)
+        assertTrue(planned.warmupSets.isNotEmpty())
+    }
 }

@@ -82,17 +82,20 @@ class WorkoutRepository(
 
     private suspend fun prescriptionContext(locationId: Long?, now: Long): PrescriptionContext {
         val excluded = excludedExerciseIds(locationId)
-        val available = db.exerciseDao().getActive().filter { it.id !in excluded }
-        val seedCoef = available.associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) }
-        val muscleIds = available.filter { (seedCoef[it.id] ?: 0f) > 0f }
+        val allActive = db.exerciseDao().getActive()
+        val available = allActive.filter { it.id !in excluded }
+        // Estimates and policy facts cover every active exercise so an explicit pick of a
+        // location-excluded lift still gets a real weight; only generation is location-filtered.
+        val seedCoef = allActive.associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) }
+        val muscleIds = allActive.filter { (seedCoef[it.id] ?: 0f) > 0f }
             .groupBy { it.primaryMuscle }.mapValues { e -> e.value.map { it.id } }
-        val factsSets = if (available.isNotEmpty())
+        val factsSets = if (allActive.isNotEmpty())
             db.workoutSetDao().getCompletedSetsForExercisesSince(
-                available.map { it.id }, now - PrescriptionPolicy.FACTS_WINDOW_MS)
+                allActive.map { it.id }, now - PrescriptionPolicy.FACTS_WINDOW_MS)
         else emptyList()
         val policyFacts = PolicyFacts.build(
             sets = factsSets,
-            exerciseMuscle = available.associate { it.id to it.primaryMuscle },
+            exerciseMuscle = allActive.associate { it.id to it.primaryMuscle },
         )
         return PrescriptionContext(available, seedCoef, muscleIds, policyFacts)
     }
