@@ -10,6 +10,8 @@ import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
+import io.github.fowles.stochastic_strength.data.model.SavedWorkout
+import io.github.fowles.stochastic_strength.data.model.SavedWorkoutExercise
 import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
@@ -25,6 +27,8 @@ import io.github.fowles.stochastic_strength.domain.history.HighlightConfig
 import io.github.fowles.stochastic_strength.domain.history.HighlightKind
 import io.github.fowles.stochastic_strength.domain.history.HighlightSeries
 import io.github.fowles.stochastic_strength.domain.history.HistoryHighlight
+import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutDetail
+import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
@@ -35,6 +39,7 @@ import io.github.fowles.stochastic_strength.domain.progression.computeCrossTunin
 import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -280,6 +285,69 @@ class WorkoutRepository(
 
     suspend fun getAllSetsForExercise(exerciseId: Long): List<WorkoutSet> =
         db.workoutSetDao().getAllForExercise(exerciseId)
+
+    // Saved workouts
+
+    /** Resolves every saved workout against the live exercise table; rows whose exercise is gone are dropped. */
+    fun observeSavedWorkouts(): Flow<List<SavedWorkoutDetail>> = combine(
+        db.savedWorkoutDao().observeAll(),
+        db.savedWorkoutDao().observeAllExerciseRows(),
+        db.exerciseDao().observeAll(),
+    ) { workouts, rows, exercises ->
+        val byId = exercises.associateBy { it.id }
+        val rowsByWorkout = rows.groupBy { it.workoutId }
+        workouts.map { w -> w.toDetail(rowsByWorkout[w.id].orEmpty(), byId) }
+    }
+
+    suspend fun getSavedWorkout(id: Long): SavedWorkoutDetail? {
+        val workout = db.savedWorkoutDao().getById(id) ?: return null
+        val rows = db.savedWorkoutDao().getExerciseRows(id)
+        val byId = db.exerciseDao().getByIds(rows.map { it.exerciseId }).associateBy { it.id }
+        return workout.toDetail(rows, byId)
+    }
+
+    private fun SavedWorkout.toDetail(rows: List<SavedWorkoutExercise>, byId: Map<Long, Exercise>) =
+        SavedWorkoutDetail(
+            id = id,
+            name = name,
+            entries = rows.sortedBy { it.position }
+                .mapNotNull { r -> byId[r.exerciseId]?.let { SavedWorkoutEntry(it, r.reps) } },
+        )
+
+    /** Inserts (id == null) or fully replaces (id != null) a saved workout in one transaction. */
+    suspend fun saveWorkout(id: Long?, name: String, entries: List<SavedWorkoutEntry>): Long = db.withTransaction {
+        val dao = db.savedWorkoutDao()
+        val workoutId = if (id == null) {
+            dao.insert(SavedWorkout(name = name, createdAt = System.currentTimeMillis()))
+        } else {
+            val existing = dao.getById(id) ?: error("Saved workout $id not found")
+            dao.update(existing.copy(name = name))
+            dao.deleteExerciseRows(id)
+            id
+        }
+        dao.insertExerciseRows(entries.mapIndexed { i, e ->
+            SavedWorkoutExercise(workoutId = workoutId, exerciseId = e.exercise.id, position = i, reps = e.reps)
+        })
+        workoutId
+    }
+
+    suspend fun deleteSavedWorkout(id: Long) = db.withTransaction {
+        db.savedWorkoutDao().deleteExerciseRows(id)
+        db.savedWorkoutDao().deleteById(id)
+    }
+
+    /**
+     * Captures a completed session as a saved workout: distinct exercises in order of first set,
+     * each with the first set's target reps (the reps the session was prescribed at).
+     */
+    suspend fun saveSessionAsWorkout(sessionId: Long, name: String): Long {
+        val sets = db.workoutSetDao().getSetsForSession(sessionId)
+        val firstSetByExercise = sets.sortedWith(compareBy({ it.completedAt ?: Long.MAX_VALUE }, { it.id }))
+            .distinctBy { it.exerciseId }
+        val byId = db.exerciseDao().getByIds(firstSetByExercise.map { it.exerciseId }).associateBy { it.id }
+        val entries = firstSetByExercise.mapNotNull { s -> byId[s.exerciseId]?.let { SavedWorkoutEntry(it, s.targetReps) } }
+        return saveWorkout(null, name, entries)
+    }
 
     // History
     suspend fun getAllSessions(): List<WorkoutSession> = db.workoutSessionDao().getAll()
