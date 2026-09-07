@@ -12,10 +12,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -24,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -35,7 +39,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.usesBarPlates
+import io.github.fowles.stochastic_strength.ui.components.ExercisePickerSheet
+import io.github.fowles.stochastic_strength.ui.components.NameDialog
+import io.github.fowles.stochastic_strength.ui.components.SavedWorkoutPickerDialog
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun WorkoutScreen(
@@ -89,7 +99,16 @@ fun WorkoutScreen(
         }
     }
 
-    Scaffold { paddingValues ->
+    val snackbarHostState = remember { SnackbarHostState() }
+    val message by viewModel.message.collectAsState()
+    LaunchedEffect(message) {
+        message?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearMessage()
+        }
+    }
+
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -98,6 +117,13 @@ fun WorkoutScreen(
             when (val s = state) {
                 WorkoutState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 is WorkoutState.PlanPreview -> {
+                    val savedWorkouts by viewModel.savedWorkouts.collectAsState()
+                    val allExercises by viewModel.allExercises.collectAsState()
+                    var dialog by rememberSaveable { mutableStateOf<PreviewDialog?>(null) }
+                    var pendingLoadId by rememberSaveable { mutableStateOf<Long?>(null) }
+                    val plannedIds = remember(s.plan.exercises) {
+                        s.plan.exercises.map { it.exercise.id }.toSet()
+                    }
                     PlanPreviewContent(
                         state = s,
                         weightUnit = weightUnit,
@@ -111,7 +137,55 @@ fun WorkoutScreen(
                             onEditLocation(locationId)
                         },
                         onExerciseTap = onExerciseTap,
+                        hasSavedWorkouts = savedWorkouts.isNotEmpty(),
+                        onAddExercise = { dialog = PreviewDialog.ADD },
+                        onLoadWorkout = { dialog = PreviewDialog.LOAD },
+                        onAppendWorkout = { dialog = PreviewDialog.APPEND },
+                        onSaveWorkout = { dialog = PreviewDialog.SAVE },
                     )
+                    when (dialog) {
+                        PreviewDialog.ADD -> ExercisePickerSheet(
+                            exercises = allExercises,
+                            excludeIds = plannedIds,
+                            onPick = { id -> dialog = null; viewModel.addExercise(id) },
+                            onDismiss = { dialog = null },
+                        )
+                        PreviewDialog.LOAD -> SavedWorkoutPickerDialog(
+                            title = "Load a workout",
+                            workouts = savedWorkouts,
+                            onPick = { id ->
+                                pendingLoadId = id
+                                if (s.edited) dialog = PreviewDialog.CONFIRM_LOAD
+                                else { dialog = null; viewModel.loadSavedWorkout(id) }
+                            },
+                            onDismiss = { dialog = null },
+                        )
+                        PreviewDialog.CONFIRM_LOAD -> AlertDialog(
+                            onDismissRequest = { dialog = null },
+                            title = { Text("Replace the current plan?") },
+                            text = { Text("Your edits to this plan will be lost.") },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    dialog = null
+                                    pendingLoadId?.let(viewModel::loadSavedWorkout)
+                                }) { Text("Replace") }
+                            },
+                            dismissButton = { TextButton(onClick = { dialog = null }) { Text("Cancel") } },
+                        )
+                        PreviewDialog.APPEND -> SavedWorkoutPickerDialog(
+                            title = "Append a workout",
+                            workouts = savedWorkouts,
+                            onPick = { id -> dialog = null; viewModel.appendSavedWorkout(id) },
+                            onDismiss = { dialog = null },
+                        )
+                        PreviewDialog.SAVE -> NameDialog(
+                            title = "Save as workout",
+                            initial = "Workout " + SimpleDateFormat("MMM d", Locale.getDefault()).format(Date()),
+                            onConfirm = { name -> dialog = null; viewModel.saveCurrentPlan(name) },
+                            onDismiss = { dialog = null },
+                        )
+                        null -> Unit
+                    }
                     s.detraining?.let { notice ->
                         val weeks = notice.weeksOff
                         Card(
@@ -197,3 +271,5 @@ fun WorkoutScreen(
         }
     }
 }
+
+private enum class PreviewDialog { ADD, LOAD, CONFIRM_LOAD, APPEND, SAVE }

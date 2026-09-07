@@ -71,12 +71,17 @@ internal fun PlanPreviewContent(
     onMove: (from: Int, to: Int) -> Unit,
     onEditLocation: (locationId: Long) -> Unit,
     onExerciseTap: (exerciseId: Long) -> Unit,
+    hasSavedWorkouts: Boolean,
+    onAddExercise: () -> Unit,
+    onLoadWorkout: () -> Unit,
+    onAppendWorkout: () -> Unit,
+    onSaveWorkout: () -> Unit,
 ) {
     val plan = state.plan
     val totalSets = plan.exercises.size * PlannedExercise.DEFAULT_SETS
     val durationMin = plan.estimatedDurationSeconds / 60
 
-    var sliderValue by remember { mutableFloatStateOf(plan.exercises.size.toFloat()) }
+    var sliderValue by remember(state.targetCount) { mutableFloatStateOf(state.targetCount.toFloat()) }
     var repRangeValue by remember(state.repMin, state.repMax) {
         mutableStateOf(state.repMin.toFloat()..state.repMax.toFloat())
     }
@@ -86,7 +91,16 @@ internal fun PlanPreviewContent(
             .fillMaxSize()
             .padding(24.dp),
     ) {
-        Text("Today's Workout", style = MaterialTheme.typography.headlineMedium)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text("Today's Workout", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+            PlanPreviewMenu(
+                hasSavedWorkouts = hasSavedWorkouts,
+                onAddExercise = onAddExercise,
+                onLoadWorkout = onLoadWorkout,
+                onAppendWorkout = onAppendWorkout,
+                onSaveWorkout = onSaveWorkout,
+            )
+        }
         Spacer(Modifier.height(4.dp))
         Text(
             "$durationMin min · ${plan.exercises.size} exercises · $totalSets sets",
@@ -193,6 +207,7 @@ internal fun PlanPreviewContent(
                                 { onAdjustWeight(planned.exercise.id, +2.5f) }
                             } else null,
                             onTap = { onExerciseTap(planned.exercise.id) },
+                            flag = state.rowFlags[planned.exercise.id],
                         )
                         HorizontalDivider()
                     }
@@ -215,6 +230,7 @@ private fun ExercisePreviewRow(
     onWeightDecrement: (() -> Unit)?,
     onWeightIncrement: (() -> Unit)?,
     onTap: () -> Unit,
+    flag: RowFlag?,
 ) {
     var showActions by remember(planned.exercise.id) { mutableStateOf(false) }
 
@@ -288,6 +304,16 @@ private fun ExercisePreviewRow(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    flag?.let {
+                        Text(
+                            when (it) {
+                                RowFlag.NOT_AT_LOCATION -> "Not at this location"
+                                RowFlag.TRAINED_RECENTLY -> "Trained recently"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
                 }
                 if (onWeightDecrement != null && onWeightIncrement != null && weightLabel != null) {
                     OutlinedButton(

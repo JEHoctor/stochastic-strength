@@ -9,10 +9,12 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
+import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
+import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutDetail
 import io.github.fowles.stochastic_strength.location.LocationResult
 import io.github.fowles.stochastic_strength.location.LocationService
 import io.github.fowles.stochastic_strength.notification.WorkoutNotificationService
@@ -23,8 +25,10 @@ import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -55,6 +59,15 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private val _doneHighlight = MutableStateFlow<String?>(null)
     val doneHighlight: StateFlow<String?> = _doneHighlight.asStateFlow()
+
+    val savedWorkouts: StateFlow<List<SavedWorkoutDetail>> = app.workoutRepository.observeSavedWorkouts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val allExercises: StateFlow<List<Exercise>> = app.workoutRepository.observeAllExercises()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
 
     private val stravaController = StravaExportController(app.stravaExporter, app.database, app.applicationScope)
     val stravaState: StateFlow<StravaExportState> = stravaController.state
@@ -156,6 +169,19 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     profile.copy(preferredRepMin = repMin, preferredRepMax = repMax)
                 )
             }
+        }
+    }
+
+    fun clearMessage() { _message.value = null }
+
+    fun addExercise(exerciseId: Long) = controller.addExercise(exerciseId)
+    fun loadSavedWorkout(id: Long) = controller.loadSavedWorkout(id)
+    fun appendSavedWorkout(id: Long) = controller.appendSavedWorkout(id)
+
+    fun saveCurrentPlan(name: String) {
+        viewModelScope.launch {
+            val id = controller.saveCurrentPlan(name)
+            _message.value = if (id != null) "Saved \"$name\"" else "Nothing to save"
         }
     }
 
