@@ -10,6 +10,9 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -66,12 +69,26 @@ class SavedWorkoutEditViewModel(
         _state.value = _state.value.copy(entries = list)
     }
 
-    /** Persist on leaving the screen. Safe to call more than once. */
-    fun save() {
+    private var saveJob: Job? = null
+
+    private suspend fun performSave() {
         val s = _state.value
         if (!s.loaded) return
-        viewModelScope.launch {
-            repository.saveWorkout(workoutId, s.name.trim().ifEmpty { "Untitled workout" }, s.entries)
+        repository.saveWorkout(workoutId, s.name.trim().ifEmpty { "Untitled workout" }, s.entries)
+    }
+
+    /** Persist on leaving the screen. Safe to call more than once. */
+    fun save() {
+        saveJob = viewModelScope.launch {
+            performSave()
+        }
+    }
+
+    override fun onCleared() {
+        val hasPendingSave = saveJob?.isActive == true
+        super.onCleared() // cancels viewModelScope
+        if (hasPendingSave) {
+            CoroutineScope(Dispatchers.IO).launch { performSave() }
         }
     }
 
