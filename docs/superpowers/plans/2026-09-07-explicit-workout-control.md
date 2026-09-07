@@ -93,7 +93,7 @@
   AppDatabase.savedWorkoutDao(); AppDatabase.MIGRATION_19_20
   ```
 
-- [ ] **Step 1: Write the DAO test (fails: DAO does not exist)**
+- [x] **Step 1: Write the DAO test (fails: DAO does not exist)**
 
 `$T/data/SavedWorkoutDaoTest.kt`:
 
@@ -161,12 +161,12 @@ class SavedWorkoutDaoTest {
 }
 ```
 
-- [ ] **Step 2: Run it to confirm it fails to compile**
+- [x] **Step 2: Run it to confirm it fails to compile**
 
 Run: `./gradlew :app:connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.data.SavedWorkoutDaoTest`
 Expected: compilation error, `Unresolved reference: SavedWorkout` / `savedWorkoutDao`.
 
-- [ ] **Step 3: Add the entities**
+- [x] **Step 3: Add the entities**
 
 `$S/data/model/SavedWorkout.kt`:
 
@@ -196,7 +196,7 @@ data class SavedWorkoutExercise(
 )
 ```
 
-- [ ] **Step 4: Add the DAO**
+- [x] **Step 4: Add the DAO**
 
 `$S/data/dao/SavedWorkoutDao.kt`:
 
@@ -254,7 +254,7 @@ interface SavedWorkoutDao {
 }
 ```
 
-- [ ] **Step 5: Register in `AppDatabase` and write the migration**
+- [x] **Step 5: Register in `AppDatabase` and write the migration**
 
 In `$S/data/AppDatabase.kt`:
 - Add imports for `SavedWorkoutDao`, `SavedWorkout`, `SavedWorkoutExercise`.
@@ -286,19 +286,19 @@ In `$S/data/AppDatabase.kt`:
 ```
 - Append `MIGRATION_19_20,` to the `addMigrations(...)` list.
 
-- [ ] **Step 6: Build so KSP exports `app/schemas/.../20.json`**
+- [x] **Step 6: Build so KSP exports `app/schemas/.../20.json`**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL and a new file `app/schemas/io.github.fowles.stochastic_strength.data.AppDatabase/20.json`. Open it and confirm the `createSql` for both tables and the index name `index_saved_workout_exercise_workoutId` match the migration SQL exactly (column order, NOT NULL, nullable `reps`). If they differ, fix the migration SQL, not the entity.
 
-- [ ] **Step 7: Extend every forward list in `MigrationTest.kt`**
+- [x] **Step 7: Extend every forward list in `MigrationTest.kt`**
 
 Six places (L142-150, L255, L510, L614, L658, L715) currently end with `AppDatabase.MIGRATION_18_19`. Append `, AppDatabase.MIGRATION_19_20` to each `addMigrations(...)` call. Then grep to prove none were missed:
 
 Run: `grep -c "MIGRATION_19_20" app/src/androidTest/java/io/github/fowles/stochastic_strength/data/MigrationTest.kt`
 Expected: `6`.
 
-- [ ] **Step 8: Write the 19→20 migration test**
+- [x] **Step 8: Write the 19→20 migration test**
 
 `$T/data/Migration19To20Test.kt` (uses Room's `MigrationTestHelper`; `androidTest` assets already include `app/schemas`):
 
@@ -350,7 +350,7 @@ class Migration19To20Test {
 
 If the `MigrationTestHelper` constructor rejects `AppDatabase::class.java`, use `AppDatabase::class` (Room 2.8 offers both). If `secondaryMuscles` is stored under a different converter format, check `19.json` for the `exercises` columns and adjust the insert; the point is one pre-existing row surviving.
 
-- [ ] **Step 9: Run the three instrumented classes**
+- [x] **Step 9: Run the three instrumented classes**
 
 Run:
 ```bash
@@ -358,7 +358,7 @@ Run:
 ```
 Expected: all PASS. `runMigrationsAndValidate` failing with a schema mismatch means the migration SQL and `20.json` disagree; fix the SQL.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 jj commit -m "feat: saved_workout tables, DAO, and migration 19->20
@@ -389,7 +389,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   suspend fun saveSessionAsWorkout(sessionId: Long, name: String): Long
   ```
 
-- [ ] **Step 1: Write the failing repository test**
+- [x] **Step 1: Write the failing repository test**
 
 `$T/domain/SavedWorkoutRepositoryTest.kt`:
 
@@ -486,12 +486,12 @@ class SavedWorkoutRepositoryTest {
 }
 ```
 
-- [ ] **Step 2: Run it to confirm it fails to compile**
+- [x] **Step 2: Run it to confirm it fails to compile**
 
 Run: `./gradlew :app:connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.domain.SavedWorkoutRepositoryTest`
 Expected: `Unresolved reference: SavedWorkoutEntry` / `saveWorkout`.
 
-- [ ] **Step 3: Add the domain model**
+- [x] **Step 3: Add the domain model**
 
 `$S/domain/model/SavedWorkoutDetail.kt`:
 
@@ -510,7 +510,7 @@ data class SavedWorkoutDetail(
 )
 ```
 
-- [ ] **Step 4: Add the repository wrappers**
+- [x] **Step 4: Add the repository wrappers**
 
 In `$S/domain/WorkoutRepository.kt`, add imports for `SavedWorkout`, `SavedWorkoutExercise`, `SavedWorkoutEntry`, `SavedWorkoutDetail`, and `kotlinx.coroutines.flow.combine`. Add after the "Exercise library" block:
 
@@ -579,12 +579,12 @@ In `$S/domain/WorkoutRepository.kt`, add imports for `SavedWorkout`, `SavedWorko
     }
 ```
 
-- [ ] **Step 5: Run the repository test**
+- [x] **Step 5: Run the repository test**
 
 Run: `./gradlew :app:connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.domain.SavedWorkoutRepositoryTest`
 Expected: 4 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "feat: saved workout domain model and repository wrappers
@@ -610,7 +610,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   ```
   `buildPlanner`'s `prescribedE1rm` and `policyFacts` now cover every active exercise, not only location-available ones.
 
-- [ ] **Step 1: Write the failing planner tests**
+- [x] **Step 1: Write the failing planner tests**
 
 Append inside `class WorkoutPlannerTest` in `$U/domain/WorkoutPlannerTest.kt` (helpers `exercise`, `strengthsFor`, `planner`, `nearFailureSet` already exist there):
 
@@ -663,12 +663,12 @@ Append inside `class WorkoutPlannerTest` in `$U/domain/WorkoutPlannerTest.kt` (h
     }
 ```
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest"`
 Expected: compilation error `Unresolved reference: planExplicit` / `isMuscleRested`.
 
-- [ ] **Step 3: Implement in `WorkoutPlanner`**
+- [x] **Step 3: Implement in `WorkoutPlanner`**
 
 In `$S/domain/WorkoutPlanner.kt`:
 - Rename `private fun muscleGroupRested(exercise: Exercise)` to `fun isMuscleRested(exercise: Exercise): Boolean` (public) and update its three call sites (`generateWorkout`, `candidatesFor`).
@@ -685,12 +685,12 @@ In `$S/domain/WorkoutPlanner.kt`:
         withWeight(PlannedExercise(exercise = exercise), reps ?: plan.sessionReps)
 ```
 
-- [ ] **Step 4: Run planner tests**
+- [x] **Step 4: Run planner tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest"`
 Expected: PASS (all, including the three new).
 
-- [ ] **Step 5: Make the repository prescribe over all active exercises**
+- [x] **Step 5: Make the repository prescribe over all active exercises**
 
 In `$S/domain/WorkoutRepository.kt` replace the body of `prescriptionContext` so that `seedCoef`, `muscleIds`, `factsSets`, and `policyFacts` are built over `allActive` while `available` stays location-filtered:
 
@@ -718,12 +718,12 @@ In `$S/domain/WorkoutRepository.kt` replace the body of `prescriptionContext` so
 
 `buildPlanner` needs no change: `prescribedE1rm` is derived from `ctx.muscleExerciseIds`, which now spans all active exercises; `availableExercises = available` stays location-filtered.
 
-- [ ] **Step 6: Run the JVM suite (prescription-trace and backtest tests read `prescriptionContext`)**
+- [x] **Step 6: Run the JVM suite (prescription-trace and backtest tests read `prescriptionContext`)**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS. `BeliefScoreTest` and `BeliefPolicyBacktestTest` untouched and green. If `ProdBssPrescriptionTest` changes value, stop: that means the muscle grouping change altered pooling; report before proceeding.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "feat: WorkoutPlanner.planExplicit; prescribe over all active exercises
@@ -759,7 +759,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   suspend fun saveCurrentPlan(name: String): Long?
   ```
 
-- [ ] **Step 1: Write the failing controller tests**
+- [x] **Step 1: Write the failing controller tests**
 
 Add to `$T/ui/workout/WorkoutSessionControllerTest.kt`. First a shared helper (place near `seedDerivedStrength`):
 
@@ -928,12 +928,12 @@ Then the tests:
 
 Add the import `io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry` at the top of the test file.
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 Run: `./gradlew :app:connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.ui.workout.WorkoutSessionControllerTest`
 Expected: compilation error on `addExercise` / `targetCount` / `edited`.
 
-- [ ] **Step 3: Extend `WorkoutState.PlanPreview`**
+- [x] **Step 3: Extend `WorkoutState.PlanPreview`**
 
 In `$S/ui/workout/WorkoutState.kt`, add `import io.github.fowles.stochastic_strength.domain.WorkoutGenerator` and change `PlanPreview` to:
 
@@ -959,7 +959,7 @@ and add at file bottom:
 enum class RowFlag { NOT_AT_LOCATION, TRAINED_RECENTLY }
 ```
 
-- [ ] **Step 4: Implement in `WorkoutSessionController`**
+- [x] **Step 4: Implement in `WorkoutSessionController`**
 
 Add imports: `io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry`, `io.github.fowles.stochastic_strength.domain.WorkoutGenerator`.
 
@@ -1086,17 +1086,17 @@ Add the new operations after `moveExercise`:
     }
 ```
 
-- [ ] **Step 5: Run the controller tests**
+- [x] **Step 5: Run the controller tests**
 
 Run: `./gradlew :app:connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.ui.workout.WorkoutSessionControllerTest`
 Expected: all PASS, including the 7 new tests and every pre-existing one.
 
-- [ ] **Step 6: Build the app (the ViewModel/UI still compile: new fields have defaults)**
+- [x] **Step 6: Build the app (the ViewModel/UI still compile: new fields have defaults)**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "feat: controller add/load/append/save; slider is a floor for restock
@@ -1117,7 +1117,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Consumes: `SavedWorkoutDao` (Task 1).
 - Produces: `WorkoutBackup.savedWorkouts: List<SavedWorkout> = emptyList()`, `WorkoutBackup.savedWorkoutExercises: List<SavedWorkoutExercise> = emptyList()`, `WorkoutBackup.DB_VERSION = 20`, `AdditiveResult.savedWorkoutsAdded: Int`.
 
-- [ ] **Step 1: Write the failing JSON round-trip test**
+- [x] **Step 1: Write the failing JSON round-trip test**
 
 Append to `$U/domain/backup/BackupJsonTest.kt` (add imports for `SavedWorkout`, `SavedWorkoutExercise`, `assertEquals`, `assertTrue`):
 
@@ -1150,12 +1150,12 @@ Append to `$U/domain/backup/BackupJsonTest.kt` (add imports for `SavedWorkout`, 
     }
 ```
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backup.BackupJsonTest"`
 Expected: compilation error, no `savedWorkouts` parameter.
 
-- [ ] **Step 3: Extend `WorkoutBackup`**
+- [x] **Step 3: Extend `WorkoutBackup`**
 
 In `$S/domain/backup/WorkoutBackup.kt` add imports for `SavedWorkout`, `SavedWorkoutExercise`, two trailing constructor fields with defaults (so existing construction sites keep compiling), and bump the version:
 
@@ -1172,7 +1172,7 @@ In `$S/domain/backup/WorkoutBackup.kt` add imports for `SavedWorkout`, `SavedWor
 }
 ```
 
-- [ ] **Step 4: Extend `BackupJson`**
+- [x] **Step 4: Extend `BackupJson`**
 
 In `BackupJsonBuilder.build`, add two `.put` lines to `tables`:
 
@@ -1211,12 +1211,12 @@ and the parsers:
 ```
 Add the two model imports.
 
-- [ ] **Step 5: Run the JSON test**
+- [x] **Step 5: Run the JSON test**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backup.BackupJsonTest"`
 Expected: PASS.
 
-- [ ] **Step 6: Write the failing manager test**
+- [x] **Step 6: Write the failing manager test**
 
 Append to `$T/domain/backup/BackupManagerTest.kt` (add imports for `SavedWorkout`, `SavedWorkoutExercise`):
 
@@ -1275,7 +1275,7 @@ Append to `$T/domain/backup/BackupManagerTest.kt` (add imports for `SavedWorkout
     }
 ```
 
-- [ ] **Step 7: Extend `BackupManager`**
+- [x] **Step 7: Extend `BackupManager`**
 
 `AdditiveResult` gains a trailing `val savedWorkoutsAdded: Int = 0`.
 
@@ -1314,7 +1314,7 @@ and return `AdditiveResult(sessionsAdded, exercisesCreated, locationsCreated, se
 
 In `$S/ui/history/HistoryViewModel.kt` L152, extend the message: after the existing `"Imported ${r.sessionsAdded} sessions (" ...` string, append `, ${r.savedWorkoutsAdded} saved workouts` inside the parenthetical (read the surrounding lines and keep its format).
 
-- [ ] **Step 8: Run both backup test classes**
+- [x] **Step 8: Run both backup test classes**
 
 Run:
 ```bash
@@ -1323,7 +1323,7 @@ Run:
 ```
 Expected: PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 jj commit -m "feat: saved workouts in history backup export/import
@@ -1352,7 +1352,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   ```
   No behavior tests (pure composables); verified by build and on-device.
 
-- [ ] **Step 1: Extract the chips**
+- [x] **Step 1: Extract the chips**
 
 `$S/ui/components/ExerciseFilterChips.kt`:
 
@@ -1426,12 +1426,12 @@ In `ExercisesScreen.kt`, replace the `CompositionLocalProvider { LazyRow ... Laz
 ```
 and replace the `filtered` computation (L264-274) with `filterExercises(state.exercises, state.selectedFilter, state.selectedEquipmentFilter)` inside the same `remember`. Remove now-unused imports (`LazyRow`, `FilterChip`, `LocalMinimumInteractiveComponentSize`, `CompositionLocalProvider`, `PaddingValues`, `Arrangement` if unused).
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL, no unused-import warnings from `ExercisesScreen.kt`.
 
-- [ ] **Step 3: Picker sheet**
+- [x] **Step 3: Picker sheet**
 
 `$S/ui/components/ExercisePickerSheet.kt`:
 
@@ -1524,7 +1524,7 @@ fun ExercisePickerSheet(
 }
 ```
 
-- [ ] **Step 4: Name dialog and saved-workout picker dialog**
+- [x] **Step 4: Name dialog and saved-workout picker dialog**
 
 `$S/ui/components/NameDialog.kt`:
 
@@ -1623,12 +1623,12 @@ fun SavedWorkoutPickerDialog(
 }
 ```
 
-- [ ] **Step 5: Build**
+- [x] **Step 5: Build**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "refactor: shared exercise filter chips, picker sheet, name and saved-workout dialogs
@@ -1659,7 +1659,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   ```
   `PlanPreviewContent` gains parameters `onAddExercise: () -> Unit, onLoadWorkout: () -> Unit, onAppendWorkout: () -> Unit, onSaveWorkout: () -> Unit, hasSavedWorkouts: Boolean`.
 
-- [ ] **Step 1: ViewModel**
+- [x] **Step 1: ViewModel**
 
 In `$S/ui/workout/WorkoutViewModel.kt` add imports (`Exercise`, `SavedWorkoutDetail`, `SharingStarted`, `stateIn`) and:
 
@@ -1686,7 +1686,7 @@ In `$S/ui/workout/WorkoutViewModel.kt` add imports (`Exercise`, `SavedWorkoutDet
     }
 ```
 
-- [ ] **Step 2: Menu composable**
+- [x] **Step 2: Menu composable**
 
 `$S/ui/workout/PlanPreviewMenu.kt`:
 
@@ -1746,7 +1746,7 @@ internal fun PlanPreviewMenu(
 }
 ```
 
-- [ ] **Step 3: `PlanPreviewContent` changes**
+- [x] **Step 3: `PlanPreviewContent` changes**
 
 In `$S/ui/workout/PlanPreviewContent.kt`:
 
@@ -1782,7 +1782,7 @@ In `$S/ui/workout/PlanPreviewContent.kt`:
                     }
    ```
 
-- [ ] **Step 4: `WorkoutScreen` wiring**
+- [x] **Step 4: `WorkoutScreen` wiring**
 
 In the `is WorkoutState.PlanPreview ->` branch of `$S/ui/workout/WorkoutScreen.kt`, before `PlanPreviewContent(...)` add dialog state and collect flows:
 
@@ -1853,16 +1853,16 @@ private enum class PreviewDialog { ADD, LOAD, CONFIRM_LOAD, APPEND, SAVE }
 
 Snackbar: add `val snackbarHostState = remember { SnackbarHostState() }`, `val message by viewModel.message.collectAsState()`, a `LaunchedEffect(message) { message?.let { snackbarHostState.showSnackbar(it); viewModel.clearMessage() } }`, and `Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) })`. Add the needed imports (`AlertDialog`, `TextButton`, `SnackbarHost`, `SnackbarHostState`, `ExercisePickerSheet`, `NameDialog`, `SavedWorkoutPickerDialog`, `SimpleDateFormat`, `Date`, `Locale`, `rememberSaveable`, `mutableStateOf`).
 
-- [ ] **Step 5: Build and run the controller test class again (it exercises `PlanPreview` fields the UI now reads)**
+- [x] **Step 5: Build and run the controller test class again (it exercises `PlanPreview` fields the UI now reads)**
 
 Run: `./gradlew :app:assembleDebug` then `./gradlew :app:connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.ui.workout.WorkoutSessionControllerTest`
 Expected: BUILD SUCCESSFUL; tests PASS.
 
-- [ ] **Step 6: On-device smoke (emulator)**
+- [x] **Step 6: On-device smoke (emulator)**
 
 Launch the app, start a workout, and verify: the "⋮" opens the four items; "Add an exercise..." shows the sheet and appends a row with a weight; the exercise-count slider stays where it was; swiping the added row away removes it without a restock; "Save as workout..." shows a snackbar. Report anything that doesn't match; do not fix silently.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "feat: plan preview menu: add exercise, load/append/save workout, row flags
@@ -1883,7 +1883,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Consumes: `WorkoutRepository.observeSavedWorkouts/getSavedWorkout/saveWorkout/deleteSavedWorkout/observeAllExercises`, `ExercisePickerSheet`, `NameDialog`.
 - Produces routes `workouts` and `workout-edit/{workoutId}`; `HomeScreen(onWorkouts: () -> Unit)`.
 
-- [ ] **Step 1: List ViewModel and screen**
+- [x] **Step 1: List ViewModel and screen**
 
 `$S/ui/savedworkouts/SavedWorkoutsViewModel.kt`:
 
@@ -2027,7 +2027,7 @@ fun SavedWorkoutsScreen(
 }
 ```
 
-- [ ] **Step 2: Editor ViewModel**
+- [x] **Step 2: Editor ViewModel**
 
 `$S/ui/savedworkouts/SavedWorkoutEditViewModel.kt`:
 
@@ -2121,7 +2121,7 @@ class SavedWorkoutEditViewModel(
 }
 ```
 
-- [ ] **Step 3: Editor screen**
+- [x] **Step 3: Editor screen**
 
 `$S/ui/savedworkouts/SavedWorkoutEditScreen.kt`:
 
@@ -2342,7 +2342,7 @@ private fun RepsDialog(
 }
 ```
 
-- [ ] **Step 4: Navigation and Home**
+- [x] **Step 4: Navigation and Home**
 
 In `$S/ui/AppNavigation.kt`: import `SavedWorkoutsScreen`, `SavedWorkoutEditScreen`; add `onWorkouts = { navController.navigate("workouts") },` to the `HomeScreen(...)` call; add routes:
 
@@ -2373,12 +2373,12 @@ In `$S/ui/home/HomeScreen.kt`: add `onWorkouts: () -> Unit` to `HomeScreen` (aft
         }
 ```
 
-- [ ] **Step 5: Build and smoke on device**
+- [x] **Step 5: Build and smoke on device**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL. On the emulator: Home → Workouts → + creates "Untitled workout" and opens the editor; add two exercises, set reps on one, reorder, back; the list shows "2 exercises"; delete removes it. Then start a workout and "Load a workout..." shows the saved one and loads it in order with the pinned reps.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "feat: saved workouts list and editor screens; Home entry point
@@ -2398,7 +2398,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Consumes: `WorkoutRepository.saveSessionAsWorkout` (Task 2), `NameDialog` (Task 6).
 - Produces: `SummaryViewModel.saveAsWorkout(name: String)`, `SummaryViewModel.message: StateFlow<String?>`, `clearMessage()`.
 
-- [ ] **Step 1: ViewModel**
+- [x] **Step 1: ViewModel**
 
 In `SummaryViewModel` add:
 
@@ -2416,7 +2416,7 @@ In `SummaryViewModel` add:
 ```
 with imports `MutableStateFlow`, `asStateFlow`.
 
-- [ ] **Step 2: Screen**
+- [x] **Step 2: Screen**
 
 In `SummaryScreen`:
 - add `var showSaveDialog by remember { mutableStateOf(false) }`, `val snackbarHostState = remember { SnackbarHostState() }`, `val message by viewModel.message.collectAsState()`, and `LaunchedEffect(message) { message?.let { snackbarHostState.showSnackbar(it); viewModel.clearMessage() } }`;
@@ -2441,11 +2441,11 @@ In `SummaryScreen`:
   ```
 - imports: `SnackbarHost`, `SnackbarHostState`, `NameDialog`.
 
-- [ ] **Step 3: Build and smoke**
+- [x] **Step 3: Build and smoke**
 
 Run: `./gradlew :app:assembleDebug`. On device: History → a session → "⋮" → "Save as workout..." → the Workouts list shows it with the session's exercises and reps.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 jj commit -m "feat: save a historical session as a workout from the summary menu
@@ -2460,22 +2460,22 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 **Files:**
 - Modify: `CLAUDE.md` (Database paragraph: version 19 → 20; add a short "Saved workouts" note under Architecture)
 
-- [ ] **Step 1: JVM suite**
+- [x] **Step 1: JVM suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS; `BeliefScoreTest` and `BeliefPolicyBacktestTest` green with unchanged pinned values.
 
-- [ ] **Step 2: Instrumented suite**
+- [x] **Step 2: Instrumented suite**
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: PASS. If the emulator is not running, say so and report which classes were run individually earlier.
 
-- [ ] **Step 3: Lint**
+- [x] **Step 3: Lint**
 
 Run: `./gradlew :app:lint`
 Expected: no new errors; fix any unused-import warnings introduced by this plan.
 
-- [ ] **Step 4: Update `CLAUDE.md`**
+- [x] **Step 4: Update `CLAUDE.md`**
 
 - Change `Room database (\`AppDatabase\`, version 19)` to `version 20`.
 - After the "Location & equipment filtering" section add:
@@ -2486,7 +2486,7 @@ Expected: no new errors; fix any unused-import warnings introduced by this plan.
 `saved_workout` / `saved_workout_exercise` (DB v20) hold user-authored workouts: ordered exercises with optional per-row reps. `WorkoutRepository` exposes `observeSavedWorkouts`, `saveWorkout`, `deleteSavedWorkout`, and `saveSessionAsWorkout`; the backup export includes both tables. On plan preview the "⋮" menu can add one exercise, load or append a saved workout, or save the plan. Explicit rows bypass the rested-muscle and location filters (`WorkoutPlanner.planExplicit`) and are flagged in the UI, never dropped. Plan rows carry no origin flag: the exercise-count slider is a **minimum** the controller maintains (restock on swipe-away only when the plan would fall below `targetCount`), and the rep-range slider reprices every row.
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "docs: CLAUDE.md for saved workouts and DB v20
