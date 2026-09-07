@@ -13,8 +13,10 @@ import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
 import io.github.fowles.stochastic_strength.ui.loadWorkoutSummary
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportController
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -60,6 +62,17 @@ class SummaryViewModel(
     }
 
     fun onStravaMessageShown() = stravaController.onMessageShown()
+
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+    fun clearMessage() { _message.value = null }
+
+    fun saveAsWorkout(name: String) {
+        viewModelScope.launch {
+            app.workoutRepository.saveSessionAsWorkout(sessionId, name)
+            _message.value = "Saved \"$name\""
+        }
+    }
 
     companion object {
         fun factory(sessionId: Long): ViewModelProvider.Factory =

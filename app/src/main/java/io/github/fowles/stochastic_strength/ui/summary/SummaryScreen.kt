@@ -18,6 +18,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -36,6 +38,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryContent
+import io.github.fowles.stochastic_strength.ui.components.NameDialog
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportButton
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
 import java.text.SimpleDateFormat
@@ -80,8 +83,19 @@ fun SummaryScreen(
         SimpleDateFormat("EEEE, MMM d · h:mm a", locale).format(Date(it.startTime))
     }
     var menuExpanded by remember { mutableStateOf(false) }
+    var showSaveDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val message by viewModel.message.collectAsState()
+
+    LaunchedEffect(message) {
+        message?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearMessage()
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = { if (dateLabel != null) Text(dateLabel) },
@@ -100,6 +114,10 @@ fun SummaryScreen(
                                     menuExpanded = false
                                     viewModel.onReexportToStrava()
                                 },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Save as workout...") },
+                                onClick = { menuExpanded = false; showSaveDialog = true },
                             )
                         }
                     }
@@ -129,6 +147,15 @@ fun SummaryScreen(
                     Text("Done")
                 }
             },
+        )
+    }
+
+    if (showSaveDialog) {
+        NameDialog(
+            title = "Save as workout",
+            initial = "Workout " + (dateLabel?.substringBefore(" ·") ?: ""),
+            onConfirm = { name -> showSaveDialog = false; viewModel.saveAsWorkout(name) },
+            onDismiss = { showSaveDialog = false },
         )
     }
 }
