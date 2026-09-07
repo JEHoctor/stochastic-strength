@@ -67,9 +67,21 @@ fun SavedWorkoutEditScreen(
     BackHandler(onBack = saveAndBack)
 
     Scaffold(topBar = { BackTopAppBar(title = "Edit workout", onBack = saveAndBack) }) { paddingValues ->
-        if (!state.loaded) {
-            LoadingBox(contentPadding = paddingValues)
-            return@Scaffold
+        when (state.status) {
+            LoadStatus.LOADING -> {
+                LoadingBox(contentPadding = paddingValues)
+                return@Scaffold
+            }
+            LoadStatus.MISSING -> {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(paddingValues),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("This workout no longer exists.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                return@Scaffold
+            }
+            LoadStatus.LOADED -> Unit
         }
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp)) {
             OutlinedTextField(

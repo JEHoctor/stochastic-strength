@@ -23,8 +23,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** Whether the workout row behind the editor has been read yet, and whether it was still there. */
+enum class LoadStatus { LOADING, LOADED, MISSING }
+
 data class SavedWorkoutEditState(
-    val loaded: Boolean = false,
+    val status: LoadStatus = LoadStatus.LOADING,
     val name: String = "",
     val entries: List<SavedWorkoutEntry> = emptyList(),
 )
@@ -45,8 +48,13 @@ class SavedWorkoutEditViewModel(
 
     init {
         viewModelScope.launch {
-            val detail = repository.getSavedWorkout(workoutId) ?: return@launch
-            _state.value = SavedWorkoutEditState(loaded = true, name = detail.name, entries = detail.entries)
+            val detail = repository.getSavedWorkout(workoutId)
+            _state.value = if (detail == null) {
+                // Deleted underneath us (or a stale nav argument): say so instead of spinning forever.
+                SavedWorkoutEditState(LoadStatus.MISSING)
+            } else {
+                SavedWorkoutEditState(LoadStatus.LOADED, detail.name, detail.entries)
+            }
         }
     }
 
@@ -78,7 +86,7 @@ class SavedWorkoutEditViewModel(
 
     private suspend fun performSave() {
         val s = _state.value
-        if (!s.loaded) return
+        if (s.status != LoadStatus.LOADED) return
         val name = s.name.trim()
         // A fresh editor the user backed out of without touching anything: leave no row behind.
         if (s.entries.isEmpty() && (name.isEmpty() || name == DEFAULT_WORKOUT_NAME)) {

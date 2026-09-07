@@ -93,7 +93,7 @@ class SavedWorkoutsViewModelsTest {
     fun save_onUntouchedEmptyWorkout_deletesIt() = runBlocking {
         val id = repo.saveWorkout(null, DEFAULT_WORKOUT_NAME, emptyList())
         val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
-        await("loaded") { vm.state.value.loaded }
+        await("loaded") { vm.state.value.status == LoadStatus.LOADED }
 
         onMain { vm.save() }
         await("deleted") { repo.getSavedWorkout(id) == null }
@@ -102,10 +102,34 @@ class SavedWorkoutsViewModelsTest {
     }
 
     @Test
+    fun edit_onDeletedWorkout_reportsMissing() = runBlocking {
+        val id = repo.saveWorkout(null, DEFAULT_WORKOUT_NAME, emptyList())
+        repo.deleteSavedWorkout(id)
+
+        val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
+
+        await("missing") { vm.state.value.status == LoadStatus.MISSING }
+    }
+
+    @Test
+    fun save_onMissingWorkout_writesNothing() = runBlocking {
+        val id = repo.saveWorkout(null, DEFAULT_WORKOUT_NAME, emptyList())
+        repo.deleteSavedWorkout(id)
+        val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
+        await("missing") { vm.state.value.status == LoadStatus.MISSING }
+
+        onMain { vm.setName("Push day"); vm.save() }
+        runBlocking { delay(200) } // let any write land
+
+        assertNull(repo.getSavedWorkout(id))
+        assertEquals(0, savedCount())
+    }
+
+    @Test
     fun save_onNamedEmptyWorkout_keepsIt() = runBlocking {
         val id = repo.saveWorkout(null, DEFAULT_WORKOUT_NAME, emptyList())
         val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
-        await("loaded") { vm.state.value.loaded }
+        await("loaded") { vm.state.value.status == LoadStatus.LOADED }
 
         onMain { vm.setName("Push day"); vm.save() }
         await("renamed") { repo.getSavedWorkout(id)?.name == "Push day" }
@@ -117,7 +141,7 @@ class SavedWorkoutsViewModelsTest {
     fun save_onDefaultNamedWorkoutWithExercises_keepsIt() = runBlocking {
         val id = repo.saveWorkout(null, DEFAULT_WORKOUT_NAME, listOf(SavedWorkoutEntry(bench, 8)))
         val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
-        await("loaded") { vm.state.value.loaded }
+        await("loaded") { vm.state.value.status == LoadStatus.LOADED }
 
         onMain { vm.save() }
         runBlocking { delay(200) }
