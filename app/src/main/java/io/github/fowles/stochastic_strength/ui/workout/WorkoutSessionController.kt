@@ -244,6 +244,8 @@ class WorkoutSessionController(
     }
 
     fun addExercise(exerciseId: Long) {
+        // A running count-slider grow loop would overwrite the added row with pre-add state.
+        addExerciseJob?.cancel()
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
         if (preview.plan.exercises.any { it.exercise.id == exerciseId }) return
         scope.launch {
@@ -266,6 +268,9 @@ class WorkoutSessionController(
 
     private fun applySavedWorkout(id: Long, append: Boolean) {
         addExerciseJob?.cancel()
+        // An in-flight weight-adjust rebuild would otherwise land after ours and reinstate the
+        // very overrides a load discards.
+        weightAdjustJob?.cancel()
         scope.launch {
             val saved = repository.getSavedWorkout(id) ?: return@launch
             val entries = saved.entries.distinctBy { it.exercise.id }
