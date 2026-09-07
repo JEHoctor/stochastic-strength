@@ -38,13 +38,15 @@ Menu items on plan preview:
   loaded position.
 - Editor is minimal: name, drag-to-reorder, swipe-to-delete, add via the shared
   picker, tap a row to set or clear its reps.
+- Saved workouts are part of the full-history backup.
+- A completed session can be saved as a workout from the summary screen's
+  existing "⋮" menu.
 
 ## Out of scope
 
 - No link from a completed session back to the saved workout it came from.
 - No per-exercise set counts (sets stay `PlannedExercise.DEFAULT_SETS`).
 - No changes to progression, replay, prescription, or the backtest gate.
-- No import/export of saved workouts (the history backup does not include them).
 
 ## Data model
 
@@ -208,6 +210,30 @@ extracted chip composable so the two filters stay identical.
 - Repository writes run on `Dispatchers.IO` inside the ViewModel scope, as
   existing writes do.
 
+## Backup
+
+`WorkoutBackup` gains `savedWorkouts: List<SavedWorkout>` and
+`savedWorkoutExercises: List<SavedWorkoutExercise>`; `BackupJson` writes and
+reads them as two more table arrays. `WorkoutBackup.DB_VERSION` moves to 20 with
+the Room bump. `FORMAT_VERSION` stays 1: a backup without the new arrays reads
+as empty lists, so older files still import.
+
+Additive import (`BackupManager`) resolves each saved row's exercise by name
+through the same `resolveExerciseId` used for sets. A saved workout whose name
+already exists locally is skipped (name is the identity, matching how
+exercises and locations dedupe). Rows whose exercise cannot be resolved are
+dropped. `AdditiveResult` gains `savedWorkoutsAdded`.
+
+## Save from a historical session
+
+`SummaryScreen`'s existing "⋮" menu gains "Save as workout...". It opens the
+same name dialog as the preview, defaulting to "Workout <session date>". The
+entries are the session's distinct exercises in order of first set, each with
+`reps = targetReps` of that exercise's first working set (the reps the session
+was actually prescribed at). This is the one save path that records reps,
+because a completed session has a definite number to record. Implemented as
+`WorkoutRepository.saveSessionAsWorkout(sessionId, name): Long`.
+
 ## Testing
 
 JVM unit tests (`src/test/`):
@@ -228,6 +254,10 @@ Instrumented tests (`src/androidTest/`):
   indices; all forward lists extended.
 - `SavedWorkoutDaoTest`: upsert round trip preserves order and null reps;
   deleting a workout cascades its rows; deleting an exercise removes its rows.
+- `BackupManagerTest` (existing): export/import round trip carries saved
+  workouts, remaps exercise ids by name, skips a same-named workout.
+- `WorkoutRepositoryTest` or DAO-level: `saveSessionAsWorkout` orders by first
+  set and records the first working set's `targetReps`.
 
 Gate: `BeliefScoreTest` and `BeliefPolicyBacktestTest` must remain green and
 untouched; run the full suite at the end.
