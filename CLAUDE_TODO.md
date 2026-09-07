@@ -7,7 +7,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 ## Open — needs triage
 
 ### From explicit-workout-control (2026-09-07) final review, deferred
-- WorkoutScreen: `savedWorkouts` starts as emptyList so the Load/Append items can flicker disabled on first frame; `pendingLoadId` never cleared; snackbar replays on rotation.
 - SummaryScreen: save-dialog default is "Workout " if opened before the summary loads.
 - app/build.gradle.kts: androidTest-only `resolutionStrategy.force` on kotlinx-serialization 1.8.1 (Room 2.8.4 MigrationTestHelper vs Compose BOM). Revisit when bumping either.
 

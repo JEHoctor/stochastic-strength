@@ -100,11 +100,13 @@ fun WorkoutScreen(
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val message by viewModel.message.collectAsState()
-    LaunchedEffect(message) {
-        message?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.clearMessage()
+    // Keyed on Unit: re-keying on the message would cancel the in-flight showSnackbar.
+    LaunchedEffect(Unit) {
+        viewModel.message.collect { m ->
+            if (m != null) {
+                viewModel.clearMessage()
+                snackbarHostState.showSnackbar(m)
+            }
         }
     }
 
@@ -137,7 +139,7 @@ fun WorkoutScreen(
                             onEditLocation(locationId)
                         },
                         onExerciseTap = onExerciseTap,
-                        hasSavedWorkouts = savedWorkouts.isNotEmpty(),
+                        hasSavedWorkouts = savedWorkouts?.isNotEmpty() != false,
                         onAddExercise = { dialog = PreviewDialog.ADD },
                         onLoadWorkout = { dialog = PreviewDialog.LOAD },
                         onAppendWorkout = { dialog = PreviewDialog.APPEND },
@@ -155,23 +157,27 @@ fun WorkoutScreen(
                             title = "Load a workout",
                             workouts = savedWorkouts,
                             onPick = { id ->
-                                pendingLoadId = id
-                                if (s.edited) dialog = PreviewDialog.CONFIRM_LOAD
-                                else { dialog = null; viewModel.loadSavedWorkout(id) }
+                                if (s.edited) {
+                                    pendingLoadId = id
+                                    dialog = PreviewDialog.CONFIRM_LOAD
+                                } else { dialog = null; viewModel.loadSavedWorkout(id) }
                             },
-                            onDismiss = { dialog = null },
+                            onDismiss = { dialog = null; pendingLoadId = null },
                         )
                         PreviewDialog.CONFIRM_LOAD -> AlertDialog(
-                            onDismissRequest = { dialog = null },
+                            onDismissRequest = { dialog = null; pendingLoadId = null },
                             title = { Text("Replace the current plan?") },
                             text = { Text("Your edits to this plan will be lost.") },
                             confirmButton = {
                                 TextButton(onClick = {
                                     dialog = null
                                     pendingLoadId?.let(viewModel::loadSavedWorkout)
+                                    pendingLoadId = null
                                 }) { Text("Replace") }
                             },
-                            dismissButton = { TextButton(onClick = { dialog = null }) { Text("Cancel") } },
+                            dismissButton = {
+                                TextButton(onClick = { dialog = null; pendingLoadId = null }) { Text("Cancel") }
+                            },
                         )
                         PreviewDialog.APPEND -> SavedWorkoutPickerDialog(
                             title = "Append a workout",

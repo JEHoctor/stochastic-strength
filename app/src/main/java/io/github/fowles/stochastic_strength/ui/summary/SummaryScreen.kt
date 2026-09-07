@@ -85,12 +85,14 @@ fun SummaryScreen(
     var menuExpanded by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val message by viewModel.message.collectAsState()
 
-    LaunchedEffect(message) {
-        message?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.clearMessage()
+    // Keyed on Unit: re-keying on the message would cancel the in-flight showSnackbar.
+    LaunchedEffect(Unit) {
+        viewModel.message.collect { m ->
+            if (m != null) {
+                viewModel.clearMessage()
+                snackbarHostState.showSnackbar(m)
+            }
         }
     }
 
