@@ -7,7 +7,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 ## Open — needs triage
 
 ### From explicit-workout-control (2026-09-07) final review, deferred
-- SavedWorkoutsViewModel.createNew: no in-flight guard (FAB double-tap creates two "Untitled workout" rows); backing out of a fresh editor leaves an empty workout.
 - SavedWorkoutEditViewModel: a deleted/missing workout id leaves the editor on the spinner (no error state).
 - WorkoutSessionControllerTest.locationRefresh_keepsExplicitlyAddedExcludedRow waits with delay(300); convert to a condition poll to avoid a vacuous pass on slow devices.
 - WorkoutScreen: `savedWorkouts` starts as emptyList so the Load/Append items can flicker disabled on first frame; `pendingLoadId` never cleared; snackbar replays on rotation.

@@ -10,11 +10,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
+/** Name a saved workout gets when the user never typed one. */
+const val DEFAULT_WORKOUT_NAME = "Untitled workout"
+
 @Composable
 fun NameDialog(
     title: String,
     initial: String,
     confirmLabel: String = "Save",
+    defaultName: String = DEFAULT_WORKOUT_NAME,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -26,7 +30,7 @@ fun NameDialog(
             OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Name") })
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name.trim().ifEmpty { "Untitled workout" }) }) { Text(confirmLabel) }
+            TextButton(onClick = { onConfirm(name.trim().ifEmpty { defaultName }) }) { Text(confirmLabel) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

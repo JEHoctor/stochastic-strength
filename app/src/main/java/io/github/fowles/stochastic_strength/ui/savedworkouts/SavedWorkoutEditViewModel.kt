@@ -10,7 +10,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
+import io.github.fowles.stochastic_strength.ui.components.DEFAULT_WORKOUT_NAME
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,8 +32,10 @@ data class SavedWorkoutEditState(
 class SavedWorkoutEditViewModel(
     application: Application,
     private val workoutId: Long,
+    private val repository: WorkoutRepository,
 ) : AndroidViewModel(application) {
-    private val repository = (application as StochasticStrengthApp).workoutRepository
+    constructor(application: Application, workoutId: Long) :
+        this(application, workoutId, (application as StochasticStrengthApp).workoutRepository)
 
     private val _state = MutableStateFlow(SavedWorkoutEditState())
     val state: StateFlow<SavedWorkoutEditState> = _state.asStateFlow()
@@ -75,7 +79,13 @@ class SavedWorkoutEditViewModel(
     private suspend fun performSave() {
         val s = _state.value
         if (!s.loaded) return
-        repository.saveWorkout(workoutId, s.name.trim().ifEmpty { "Untitled workout" }, s.entries)
+        val name = s.name.trim()
+        // A fresh editor the user backed out of without touching anything: leave no row behind.
+        if (s.entries.isEmpty() && (name.isEmpty() || name == DEFAULT_WORKOUT_NAME)) {
+            repository.deleteSavedWorkout(workoutId)
+            return
+        }
+        repository.saveWorkout(workoutId, name.ifEmpty { DEFAULT_WORKOUT_NAME }, s.entries)
     }
 
     /** Persist on leaving the screen. Safe to call more than once. */
