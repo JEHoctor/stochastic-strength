@@ -96,6 +96,10 @@ dependencies {
     testImplementation(libs.json)
     testImplementation(libs.kotlinx.coroutines.test)
     implementation(libs.kotlinx.coroutines.core)
+    // Not used directly. Room 2.8.4's MigrationTestHelper needs kotlinx-serialization >= 1.8.1, but
+    // lifecycle 2.11 pulls 1.7.3 into the app runtime and Gradle's consistent resolution then pins
+    // the androidTest classpath to that. Declaring it here lifts the app runtime to what Room needs.
+    implementation(libs.kotlinx.serialization.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -105,20 +109,3 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
 
-// androidx.room:room-migration (used by MigrationTestHelper to deserialize
-// exported schema JSON) declares kotlinx-serialization-json 1.8.1, but the
-// Compose BOM's "strictly 1.7.3" constraint on kotlinx-serialization-core
-// downgrades it, leaving Room's precompiled bundle serializers (compiled
-// against the newer core) missing GeneratedSerializer.typeParametersSerializers()
-// at runtime -> AbstractMethodError. Force core/json back up to what Room
-// actually needs, for androidTest classpaths only.
-configurations.matching { it.name.contains("AndroidTest", ignoreCase = false) }.configureEach {
-    resolutionStrategy {
-        force(
-            "org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.1",
-            "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.8.1",
-            "org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1",
-            "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.8.1",
-        )
-    }
-}

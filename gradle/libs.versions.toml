@@ -17,6 +17,7 @@ vico = "3.2.3"
 okhttp = "5.4.0"
 tink = "1.18.0"
 kotlinxCoroutines = "1.11.0"
+kotlinxSerialization = "1.11.0"
 reorderable = "2.4.0"
 
 [libraries]
@@ -52,6 +53,7 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 tink-android = { group = "com.google.crypto.tink", name = "tink-android", version.ref = "tink" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinxSerialization" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
