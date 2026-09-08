@@ -510,14 +510,22 @@ class WorkoutSessionController(
     }
 
     fun onLocationRefreshed() {
-        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        if (_state.value !is WorkoutState.PlanPreview) return
         val locationId = sessionLocationId ?: return
         scope.launch {
             val locationName = database.knownLocationDao().getById(locationId)?.name
-            val freshPlanner = repository.buildPlanner(locationId, weightUnit, preview.plan.effectiveOverrides)
+            // Build from the overrides the preview holds *after* the suspend: a load that landed
+            // meanwhile may have cleared them, and its planner must not be overwritten with a
+            // stale one. Rebuild until the overrides we built from are the ones still in state.
+            var current = _state.value as? WorkoutState.PlanPreview ?: return@launch
+            var freshPlanner: WorkoutPlanner
+            while (true) {
+                val overrides = current.plan.effectiveOverrides
+                freshPlanner = repository.buildPlanner(locationId, weightUnit, overrides)
+                current = _state.value as? WorkoutState.PlanPreview ?: return@launch
+                if (current.plan.effectiveOverrides == overrides) break
+            }
             planner = freshPlanner
-            // Re-read state: an add/load may have landed while the lookups above suspended.
-            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
             val availableIds = freshPlanner.availableExercises.map { it.id }.toSet()
             var plan = current.plan
             var i = 0
