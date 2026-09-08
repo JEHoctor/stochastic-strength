@@ -307,7 +307,7 @@ private fun ExercisePreviewRow(
                     flag?.let {
                         Text(
                             when (it) {
-                                RowFlag.NOT_AT_LOCATION -> "Not at this location"
+                                RowFlag.NOT_AT_LOCATION -> "Missing equipment"
                                 RowFlag.TRAINED_RECENTLY -> "Trained recently"
                             },
                             style = MaterialTheme.typography.labelSmall,
