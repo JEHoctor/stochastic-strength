@@ -35,12 +35,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -168,9 +170,11 @@ private fun EntryRow(
     onRemove: () -> Unit,
     onRepsChange: (Int?) -> Unit,
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { v -> if (v == SwipeToDismissBoxValue.EndToStart) { onRemove(); true } else false },
-    )
+    val dismissState = rememberSwipeToDismissBoxState()
+    LaunchedEffect(dismissState) {
+        snapshotFlow { dismissState.currentValue }
+            .collect { if (it == SwipeToDismissBoxValue.EndToStart) onRemove() }
+    }
     SwipeToDismissBox(
         state = dismissState,
         enableDismissFromStartToEnd = false,
