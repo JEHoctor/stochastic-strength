@@ -230,7 +230,9 @@ private fun RepsStepper(reps: Int?, onRepsChange: (Int?) -> Unit) {
             value.toString(),
             style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center,
-            color = if (value == 0) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            // At 0 there is nothing to count, so match the disabled "−" rather than the live number.
+            color = MaterialTheme.colorScheme.onSurface
+                .copy(alpha = if (value == 0) DISABLED_ALPHA else 1f),
             modifier = Modifier.widthIn(min = 24.dp),
         )
         IconButton(
@@ -243,3 +245,6 @@ private fun RepsStepper(reps: Int?, onRepsChange: (Int?) -> Unit) {
 }
 
 private const val MAX_REPS = 50
+
+/** Material 3's disabled-content alpha, so the dimmed 0 matches the disabled "−" beside it. */
+private const val DISABLED_ALPHA = 0.38f
