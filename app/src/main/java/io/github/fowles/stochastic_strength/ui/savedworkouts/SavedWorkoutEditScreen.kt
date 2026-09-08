@@ -3,7 +3,6 @@ package io.github.fowles.stochastic_strength.ui.savedworkouts
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,17 +10,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragIndicator
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -41,8 +43,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
@@ -63,7 +65,6 @@ fun SavedWorkoutEditScreen(
     val state by viewModel.state.collectAsState()
     val allExercises by viewModel.allExercises.collectAsState()
     var showPicker by rememberSaveable { mutableStateOf(false) }
-    var repsFor by rememberSaveable { mutableStateOf<Long?>(null) }
 
     var showDiscard by rememberSaveable { mutableStateOf(false) }
 
@@ -111,7 +112,7 @@ fun SavedWorkoutEditScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                "Drag to reorder · swipe left to remove · tap to set reps",
+                "Drag to reorder · swipe left to remove · − / + sets reps (0 = session default)",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 8.dp),
@@ -130,7 +131,7 @@ fun SavedWorkoutEditScreen(
                                 entry = entry,
                                 dragHandleModifier = Modifier.draggableHandle(),
                                 onRemove = { viewModel.removeExercise(entry.exercise.id) },
-                                onTap = { repsFor = entry.exercise.id },
+                                onRepsChange = { reps -> viewModel.setReps(entry.exercise.id, reps) },
                             )
                             HorizontalDivider()
                         }
@@ -158,17 +159,6 @@ fun SavedWorkoutEditScreen(
             onDismiss = { showPicker = false },
         )
     }
-    repsFor?.let { id ->
-        val entry = state.entries.firstOrNull { it.exercise.id == id }
-        if (entry != null) {
-            RepsDialog(
-                exerciseName = entry.exercise.name,
-                initial = entry.reps,
-                onConfirm = { reps -> viewModel.setReps(id, reps); repsFor = null },
-                onDismiss = { repsFor = null },
-            )
-        }
-    }
 }
 
 @Composable
@@ -176,7 +166,7 @@ private fun EntryRow(
     entry: SavedWorkoutEntry,
     dragHandleModifier: Modifier,
     onRemove: () -> Unit,
-    onTap: () -> Unit,
+    onRepsChange: (Int?) -> Unit,
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { v -> if (v == SwipeToDismissBoxValue.EndToStart) { onRemove(); true } else false },
@@ -203,8 +193,7 @@ private fun EntryRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surface)
-                .clickable(onClick = onTap)
-                .padding(vertical = 12.dp),
+                .padding(vertical = 4.dp),
         ) {
             Icon(
                 Icons.Filled.DragIndicator,
@@ -214,44 +203,43 @@ private fun EntryRow(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(entry.exercise.name, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    entry.reps?.let { "$it reps" } ?: "Session default reps",
+                // The stepper already shows a chosen count; 0 is the one value that needs a word.
+                if (entry.reps == null) Text(
+                    "Session default reps",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            RepsStepper(reps = entry.reps, onRepsChange = onRepsChange)
         }
     }
 }
 
+/** Inline reps control. 0 is not a rep count but "leave it to the session", i.e. a null override. */
 @Composable
-private fun RepsDialog(
-    exerciseName: String,
-    initial: Int?,
-    onConfirm: (Int?) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var text by remember { mutableStateOf(initial?.toString() ?: "") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(exerciseName) },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it.filter(Char::isDigit).take(3) },
-                label = { Text("Reps") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(text.toIntOrNull()?.takeIf { it > 0 }) }) { Text("Set") }
-        },
-        dismissButton = {
-            Row {
-                TextButton(onClick = { onConfirm(null) }) { Text("Use session default") }
-                TextButton(onClick = onDismiss) { Text("Cancel") }
-            }
-        },
-    )
+private fun RepsStepper(reps: Int?, onRepsChange: (Int?) -> Unit) {
+    val value = reps ?: 0
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(
+            onClick = { onRepsChange((value - 1).takeIf { it > 0 }) },
+            enabled = value > 0,
+        ) {
+            Icon(Icons.Filled.Remove, contentDescription = "One rep fewer")
+        }
+        Text(
+            value.toString(),
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+            color = if (value == 0) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.widthIn(min = 24.dp),
+        )
+        IconButton(
+            onClick = { onRepsChange((value + 1).coerceAtMost(MAX_REPS)) },
+            enabled = value < MAX_REPS,
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "One rep more")
+        }
+    }
 }
+
+private const val MAX_REPS = 50
