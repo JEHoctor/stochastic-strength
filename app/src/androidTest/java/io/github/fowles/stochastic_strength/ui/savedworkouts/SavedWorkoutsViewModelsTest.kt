@@ -78,6 +78,33 @@ class SavedWorkoutsViewModelsTest {
     }
 
     @Test
+    fun hasUnsavedChanges_tracksEditsAndSaves() {
+        val vm = newEditor()
+        assertEquals(false, vm.hasUnsavedChanges())
+        runBlocking { vm.allExercises.first { it.isNotEmpty() } }
+
+        onMain { vm.addExercise(bench.id) }
+        assertEquals(true, vm.hasUnsavedChanges())
+
+        onMain { vm.save() }
+        await("saved") { savedCount() == 1 && !vm.hasUnsavedChanges() }
+
+        onMain { vm.setName("Push day") }
+        assertEquals(true, vm.hasUnsavedChanges())
+    }
+
+    @Test
+    fun hasUnsavedChanges_falseForFreshlyLoadedExistingWorkout() = runBlocking {
+        val id = repo.saveWorkout(null, "Push day", listOf(SavedWorkoutEntry(bench, 8)))
+        val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
+        await("loaded") { vm.state.value.status == LoadStatus.LOADED }
+
+        assertEquals(false, vm.hasUnsavedChanges())
+        onMain { vm.removeExercise(bench.id) }
+        assertEquals(true, vm.hasUnsavedChanges())
+    }
+
+    @Test
     fun newWorkout_untouchedSave_writesNoRow() {
         val vm = newEditor()
 

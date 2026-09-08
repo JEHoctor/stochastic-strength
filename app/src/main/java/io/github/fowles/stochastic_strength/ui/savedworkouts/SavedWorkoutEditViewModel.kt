@@ -49,6 +49,12 @@ class SavedWorkoutEditViewModel(
     )
     val state: StateFlow<SavedWorkoutEditState> = _state.asStateFlow()
 
+    /** What the editor showed when it opened (or last saved); anything else is an unsaved edit. */
+    private var savedSnapshot: SavedWorkoutEditState = _state.value
+
+    /** True when leaving without Done would lose something. Only Done persists; back discards. */
+    fun hasUnsavedChanges(): Boolean = _state.value.status == LoadStatus.LOADED && _state.value != savedSnapshot
+
     val allExercises: StateFlow<List<Exercise>> = repository.observeAllExercises()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -64,6 +70,7 @@ class SavedWorkoutEditViewModel(
                 val name = if (SavedWorkoutNaming.isPlaceholder(detail.name)) "" else detail.name
                 SavedWorkoutEditState(LoadStatus.LOADED, name, detail.entries)
             }
+            savedSnapshot = _state.value
         }
     }
 
@@ -102,9 +109,10 @@ class SavedWorkoutEditViewModel(
         if (persistedId == null && s.entries.isEmpty() && name.isEmpty()) return
         // Empty stays empty: the list and pickers derive a name from the exercises.
         persistedId = repository.saveWorkout(persistedId, name, s.entries)
+        savedSnapshot = s
     }
 
-    /** Persist on leaving the screen. Safe to call more than once. */
+    /** Persist (the Done button). Safe to call more than once. */
     fun save() {
         saveJob = viewModelScope.launch {
             performSave()

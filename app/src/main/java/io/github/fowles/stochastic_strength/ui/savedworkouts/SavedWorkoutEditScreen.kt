@@ -24,6 +24,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SwipeToDismissBox
@@ -64,11 +65,24 @@ fun SavedWorkoutEditScreen(
     var showPicker by rememberSaveable { mutableStateOf(false) }
     var repsFor by rememberSaveable { mutableStateOf<Long?>(null) }
 
-    val saveAndBack = { viewModel.save(); onBack() }
-    BackHandler(onBack = saveAndBack)
+    var showDiscard by rememberSaveable { mutableStateOf(false) }
+
+    // Only Done saves. Back leaves without saving, asking first if that would lose edits.
+    val leave = { if (viewModel.hasUnsavedChanges()) showDiscard = true else onBack() }
+    BackHandler(onBack = leave)
+
+    if (showDiscard) {
+        AlertDialog(
+            onDismissRequest = { showDiscard = false },
+            title = { Text("Discard changes?") },
+            text = { Text("Tap Done to keep them.") },
+            confirmButton = { TextButton(onClick = { showDiscard = false; onBack() }) { Text("Discard") } },
+            dismissButton = { TextButton(onClick = { showDiscard = false }) { Text("Keep editing") } },
+        )
+    }
 
     val title = if (workoutId == SavedWorkoutEditViewModel.NEW_WORKOUT_ID) "New workout" else "Edit workout"
-    Scaffold(topBar = { BackTopAppBar(title = title, onBack = saveAndBack) }) { paddingValues ->
+    Scaffold(topBar = { BackTopAppBar(title = title, onBack = leave) }) { paddingValues ->
         when (state.status) {
             LoadStatus.LOADING -> {
                 LoadingBox(contentPadding = paddingValues)
@@ -123,8 +137,14 @@ fun SavedWorkoutEditScreen(
                     }
                 }
             }
-            Button(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+            OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
                 Text("Add exercise")
+            }
+            Button(
+                onClick = { viewModel.save(); onBack() },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                Text("Done")
             }
         }
     }
