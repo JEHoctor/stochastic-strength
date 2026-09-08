@@ -6,11 +6,8 @@ import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutDetail
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -24,20 +21,8 @@ class SavedWorkoutsViewModel(
     val workouts: StateFlow<List<SavedWorkoutDetail>?> = repository.observeSavedWorkouts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    private val _createdId = MutableStateFlow<Long?>(null)
-    val createdId: StateFlow<Long?> = _createdId.asStateFlow()
-
-    private var createJob: Job? = null
-
-    /** No-op while a create is in flight or its id is still waiting to be consumed (FAB double-tap). */
-    fun createNew() {
-        if (createJob?.isActive == true || _createdId.value != null) return
-        createJob = viewModelScope.launch {
-            _createdId.value = repository.saveWorkout(null, "", emptyList())
-        }
-    }
-
-    fun consumeCreated() { _createdId.value = null }
+    // A new workout is not a row until the editor has something to save: see
+    // SavedWorkoutEditViewModel.NEW_WORKOUT_ID.
 
     fun delete(id: Long) {
         viewModelScope.launch { repository.deleteSavedWorkout(id) }

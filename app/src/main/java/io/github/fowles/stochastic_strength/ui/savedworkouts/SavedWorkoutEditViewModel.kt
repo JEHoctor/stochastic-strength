@@ -34,21 +34,28 @@ data class SavedWorkoutEditState(
 
 class SavedWorkoutEditViewModel(
     application: Application,
-    private val workoutId: Long,
+    workoutId: Long,
     private val repository: WorkoutRepository,
 ) : AndroidViewModel(application) {
     constructor(application: Application, workoutId: Long) :
         this(application, workoutId, (application as StochasticStrengthApp).workoutRepository)
 
-    private val _state = MutableStateFlow(SavedWorkoutEditState())
+    /** Null until a new workout has been written once; then the row every later save updates. */
+    private var persistedId: Long? = workoutId.takeIf { it != NEW_WORKOUT_ID }
+
+    private val _state = MutableStateFlow(
+        // A new workout has nothing to load: it starts empty and becomes a row on first save.
+        if (persistedId == null) SavedWorkoutEditState(LoadStatus.LOADED) else SavedWorkoutEditState()
+    )
     val state: StateFlow<SavedWorkoutEditState> = _state.asStateFlow()
 
     val allExercises: StateFlow<List<Exercise>> = repository.observeAllExercises()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
-        viewModelScope.launch {
-            val detail = repository.getSavedWorkout(workoutId)
+        val existingId = persistedId
+        if (existingId != null) viewModelScope.launch {
+            val detail = repository.getSavedWorkout(existingId)
             _state.value = if (detail == null) {
                 // Deleted underneath us (or a stale nav argument): say so instead of spinning forever.
                 SavedWorkoutEditState(LoadStatus.MISSING)
@@ -90,13 +97,11 @@ class SavedWorkoutEditViewModel(
         val s = _state.value
         if (s.status != LoadStatus.LOADED) return
         val name = s.name.trim()
-        // A fresh editor the user backed out of without touching anything: leave no row behind.
-        if (s.entries.isEmpty() && name.isEmpty()) {
-            repository.deleteSavedWorkout(workoutId)
-            return
-        }
+        // A new workout the user never touched is never written; an existing one is never
+        // silently deleted, even when emptied — that is what the list's delete button is for.
+        if (persistedId == null && s.entries.isEmpty() && name.isEmpty()) return
         // Empty stays empty: the list and pickers derive a name from the exercises.
-        repository.saveWorkout(workoutId, name, s.entries)
+        persistedId = repository.saveWorkout(persistedId, name, s.entries)
     }
 
     /** Persist on leaving the screen. Safe to call more than once. */
@@ -121,6 +126,9 @@ class SavedWorkoutEditViewModel(
 
     companion object {
         private const val TAG = "SavedWorkoutEdit"
+
+        /** Route argument for the editor when there is no row yet. */
+        const val NEW_WORKOUT_ID = 0L
 
         fun factory(workoutId: Long): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

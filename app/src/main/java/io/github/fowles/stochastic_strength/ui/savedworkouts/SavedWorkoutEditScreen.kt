@@ -67,7 +67,8 @@ fun SavedWorkoutEditScreen(
     val saveAndBack = { viewModel.save(); onBack() }
     BackHandler(onBack = saveAndBack)
 
-    Scaffold(topBar = { BackTopAppBar(title = "Edit workout", onBack = saveAndBack) }) { paddingValues ->
+    val title = if (workoutId == SavedWorkoutEditViewModel.NEW_WORKOUT_ID) "New workout" else "Edit workout"
+    Scaffold(topBar = { BackTopAppBar(title = title, onBack = saveAndBack) }) { paddingValues ->
         when (state.status) {
             LoadStatus.LOADING -> {
                 LoadingBox(contentPadding = paddingValues)

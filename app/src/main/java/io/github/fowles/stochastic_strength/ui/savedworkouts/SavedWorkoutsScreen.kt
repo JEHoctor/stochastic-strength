@@ -24,7 +24,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,12 +46,7 @@ fun SavedWorkoutsScreen(
     viewModel: SavedWorkoutsViewModel = viewModel(),
 ) {
     val workouts by viewModel.workouts.collectAsState()
-    val createdId by viewModel.createdId.collectAsState()
     var deleteCandidate by remember { mutableStateOf<SavedWorkoutDetail?>(null) }
-
-    LaunchedEffect(createdId) {
-        createdId?.let { viewModel.consumeCreated(); onWorkoutTap(it) }
-    }
 
     deleteCandidate?.let { candidate ->
         AlertDialog(
@@ -74,7 +68,7 @@ fun SavedWorkoutsScreen(
     Scaffold(
         topBar = { BackTopAppBar(title = "Workouts", onBack = onBack) },
         floatingActionButton = {
-            FloatingActionButton(onClick = viewModel::createNew) {
+            FloatingActionButton(onClick = { onWorkoutTap(SavedWorkoutEditViewModel.NEW_WORKOUT_ID) }) {
                 Icon(Icons.Default.Add, contentDescription = "New workout")
             }
         },

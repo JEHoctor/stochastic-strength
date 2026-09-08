@@ -12,6 +12,7 @@ import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -66,39 +67,53 @@ class SavedWorkoutsViewModelsTest {
         assertNotNull(SavedWorkoutsViewModel::class.java.getConstructor(Application::class.java))
     }
 
+    private fun newEditor() = onMain { SavedWorkoutEditViewModel(app, SavedWorkoutEditViewModel.NEW_WORKOUT_ID, repo) }
+
     @Test
-    fun createNew_twiceInARow_createsOnlyOneWorkout() {
-        val vm = onMain { SavedWorkoutsViewModel(app, repo) }
-
-        onMain { vm.createNew(); vm.createNew() }
-        await("created id") { vm.createdId.value != null }
-        runBlocking { delay(200) } // let any second create land
-
-        assertEquals(1, savedCount())
+    fun newWorkout_startsLoadedAndEmpty() {
+        val vm = newEditor()
+        assertEquals(LoadStatus.LOADED, vm.state.value.status)
+        assertEquals("", vm.state.value.name)
+        assertEquals(0, vm.state.value.entries.size)
     }
 
     @Test
-    fun createNew_afterConsumingCreatedId_createsAnother() {
-        val vm = onMain { SavedWorkoutsViewModel(app, repo) }
+    fun newWorkout_untouchedSave_writesNoRow() {
+        val vm = newEditor()
 
-        onMain { vm.createNew() }
-        await("first created id") { vm.createdId.value != null }
-        onMain { vm.consumeCreated(); vm.createNew() }
-        await("second created id") { vm.createdId.value != null }
+        onMain { vm.save(); vm.save() }
+        runBlocking { delay(200) } // let any write land
 
-        assertEquals(2, savedCount())
+        assertEquals(0, savedCount())
     }
 
     @Test
-    fun save_onUntouchedEmptyWorkout_deletesIt() = runBlocking {
-        val id = repo.saveWorkout(null, SavedWorkoutNaming.UNTITLED, emptyList())
+    fun newWorkout_firstSaveCreatesRow_laterSavesUpdateIt() {
+        val vm = newEditor()
+        // WhileSubscribed: the exercise flow only fills once something collects it.
+        runBlocking { vm.allExercises.first { it.isNotEmpty() } }
+
+        onMain { vm.addExercise(bench.id); vm.save() }
+        await("created") { savedCount() == 1 }
+        val created = runBlocking { db.savedWorkoutDao().getAll().single() }
+
+        onMain { vm.setName("Push day"); vm.save() }
+        await("renamed") { runBlocking { repo.getSavedWorkout(created.id)?.name } == "Push day" }
+
+        assertEquals("a second save must update, not insert", 1, savedCount())
+        assertEquals(listOf(bench.id), runBlocking { repo.getSavedWorkout(created.id)!!.entries.map { it.exercise.id } })
+    }
+
+    @Test
+    fun save_onExistingEmptyUnnamedWorkout_keepsIt() = runBlocking {
+        val id = repo.saveWorkout(null, "", emptyList())
         val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
         await("loaded") { vm.state.value.status == LoadStatus.LOADED }
 
         onMain { vm.save() }
-        await("deleted") { repo.getSavedWorkout(id) == null }
+        runBlocking { delay(200) } // let any delete land
 
-        assertNull(repo.getSavedWorkout(id))
+        assertNotNull("an existing row is never silently deleted", repo.getSavedWorkout(id))
     }
 
     @Test
