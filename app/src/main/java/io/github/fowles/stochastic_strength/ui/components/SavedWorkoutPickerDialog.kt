@@ -2,7 +2,9 @@ package io.github.fowles.stochastic_strength.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,7 +23,7 @@ fun exerciseCountLabel(n: Int): String = "$n exercise" + if (n == 1) "" else "s"
 @Composable
 fun SavedWorkoutPickerDialog(
     title: String,
-    workouts: List<SavedWorkoutDetail>,
+    workouts: List<SavedWorkoutDetail>?,
     onPick: (Long) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -29,7 +31,10 @@ fun SavedWorkoutPickerDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            if (workouts.isEmpty()) {
+            if (workouts == null) {
+                // Still waiting on the first emission — don't flash the empty state.
+                LoadingBox(PaddingValues(0.dp), Modifier.height(96.dp))
+            } else if (workouts.isEmpty()) {
                 Text("No saved workouts yet. Create one from Home → Workouts.")
             } else {
                 LazyColumn {
@@ -40,7 +45,7 @@ fun SavedWorkoutPickerDialog(
                                 .clickable { onPick(w.id) }
                                 .padding(vertical = 10.dp),
                         ) {
-                            Text(w.name, style = MaterialTheme.typography.bodyLarge)
+                            Text(w.displayName, style = MaterialTheme.typography.bodyLarge)
                             Text(
                                 exerciseCountLabel(w.entries.size),
                                 style = MaterialTheme.typography.bodySmall,

@@ -60,8 +60,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _doneHighlight = MutableStateFlow<String?>(null)
     val doneHighlight: StateFlow<String?> = _doneHighlight.asStateFlow()
 
-    val savedWorkouts: StateFlow<List<SavedWorkoutDetail>> = app.workoutRepository.observeSavedWorkouts()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Null until the first emission arrives, so the UI can tell "unknown" from "empty". */
+    val savedWorkouts: StateFlow<List<SavedWorkoutDetail>?> = app.workoutRepository.observeSavedWorkouts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val allExercises: StateFlow<List<Exercise>> = app.workoutRepository.observeAllExercises()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -180,8 +181,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     fun saveCurrentPlan(name: String) {
         viewModelScope.launch {
-            val id = controller.saveCurrentPlan(name)
-            _message.value = if (id != null) "Saved \"$name\"" else "Nothing to save"
+            val saved = controller.saveCurrentPlan(name)
+            _message.value = if (saved != null) "Saved \"${saved.displayName}\"" else "Nothing to save"
         }
     }
 

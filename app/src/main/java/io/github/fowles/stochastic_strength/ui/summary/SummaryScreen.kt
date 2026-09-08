@@ -37,6 +37,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryContent
 import io.github.fowles.stochastic_strength.ui.components.NameDialog
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportButton
@@ -85,12 +86,14 @@ fun SummaryScreen(
     var menuExpanded by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val message by viewModel.message.collectAsState()
 
-    LaunchedEffect(message) {
-        message?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.clearMessage()
+    // Keyed on Unit: re-keying on the message would cancel the in-flight showSnackbar.
+    LaunchedEffect(Unit) {
+        viewModel.message.collect { m ->
+            if (m != null) {
+                viewModel.clearMessage()
+                snackbarHostState.showSnackbar(m)
+            }
         }
     }
 
@@ -117,6 +120,7 @@ fun SummaryScreen(
                             )
                             DropdownMenuItem(
                                 text = { Text("Save as workout...") },
+                                enabled = summary != null,
                                 onClick = { menuExpanded = false; showSaveDialog = true },
                             )
                         }
@@ -150,10 +154,11 @@ fun SummaryScreen(
         )
     }
 
-    if (showSaveDialog) {
+    val loaded = summary
+    if (showSaveDialog && loaded != null) {
         NameDialog(
             title = "Save as workout",
-            initial = "Workout " + (dateLabel?.substringBefore(" ·") ?: ""),
+            placeholder = SavedWorkoutNaming.defaultName(loaded.exercises.map { it.name }),
             onConfirm = { name -> showSaveDialog = false; viewModel.saveAsWorkout(name) },
             onDismiss = { showSaveDialog = false },
         )

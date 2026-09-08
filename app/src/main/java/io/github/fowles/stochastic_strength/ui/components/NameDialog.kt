@@ -13,20 +13,27 @@ import androidx.compose.runtime.setValue
 @Composable
 fun NameDialog(
     title: String,
-    initial: String,
+    /** Shown greyed while the field is empty; an empty confirm means "use the derived name". */
+    placeholder: String,
     confirmLabel: String = "Save",
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var name by remember { mutableStateOf(initial) }
+    var name by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Name") })
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                label = { Text("Name") },
+                placeholder = { Text(placeholder) },
+            )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name.trim().ifEmpty { "Untitled workout" }) }) { Text(confirmLabel) }
+            TextButton(onClick = { onConfirm(name.trim()) }) { Text(confirmLabel) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

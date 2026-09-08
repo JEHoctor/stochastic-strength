@@ -10,7 +10,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
+import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -21,8 +23,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** Whether the workout row behind the editor has been read yet, and whether it was still there. */
+enum class LoadStatus { LOADING, LOADED, MISSING }
+
 data class SavedWorkoutEditState(
-    val loaded: Boolean = false,
+    val status: LoadStatus = LoadStatus.LOADING,
     val name: String = "",
     val entries: List<SavedWorkoutEntry> = emptyList(),
 )
@@ -30,8 +35,10 @@ data class SavedWorkoutEditState(
 class SavedWorkoutEditViewModel(
     application: Application,
     private val workoutId: Long,
+    private val repository: WorkoutRepository,
 ) : AndroidViewModel(application) {
-    private val repository = (application as StochasticStrengthApp).workoutRepository
+    constructor(application: Application, workoutId: Long) :
+        this(application, workoutId, (application as StochasticStrengthApp).workoutRepository)
 
     private val _state = MutableStateFlow(SavedWorkoutEditState())
     val state: StateFlow<SavedWorkoutEditState> = _state.asStateFlow()
@@ -41,8 +48,15 @@ class SavedWorkoutEditViewModel(
 
     init {
         viewModelScope.launch {
-            val detail = repository.getSavedWorkout(workoutId) ?: return@launch
-            _state.value = SavedWorkoutEditState(loaded = true, name = detail.name, entries = detail.entries)
+            val detail = repository.getSavedWorkout(workoutId)
+            _state.value = if (detail == null) {
+                // Deleted underneath us (or a stale nav argument): say so instead of spinning forever.
+                SavedWorkoutEditState(LoadStatus.MISSING)
+            } else {
+                // An unnamed workout edits as empty text, with the derived name as placeholder.
+                val name = if (SavedWorkoutNaming.isPlaceholder(detail.name)) "" else detail.name
+                SavedWorkoutEditState(LoadStatus.LOADED, name, detail.entries)
+            }
         }
     }
 
@@ -74,8 +88,15 @@ class SavedWorkoutEditViewModel(
 
     private suspend fun performSave() {
         val s = _state.value
-        if (!s.loaded) return
-        repository.saveWorkout(workoutId, s.name.trim().ifEmpty { "Untitled workout" }, s.entries)
+        if (s.status != LoadStatus.LOADED) return
+        val name = s.name.trim()
+        // A fresh editor the user backed out of without touching anything: leave no row behind.
+        if (s.entries.isEmpty() && name.isEmpty()) {
+            repository.deleteSavedWorkout(workoutId)
+            return
+        }
+        // Empty stays empty: the list and pickers derive a name from the exercises.
+        repository.saveWorkout(workoutId, name, s.entries)
     }
 
     /** Persist on leaving the screen. Safe to call more than once. */

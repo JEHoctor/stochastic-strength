@@ -7,6 +7,10 @@ data class SavedWorkoutEntry(val exercise: Exercise, val reps: Int?)
 
 data class SavedWorkoutDetail(
     val id: Long,
+    /** Empty when the user never named it; show [displayName]. */
     val name: String,
     val entries: List<SavedWorkoutEntry>,
-)
+) {
+    val displayName: String
+        get() = name.ifBlank { SavedWorkoutNaming.defaultName(entries.map { it.exercise.name }) }
+}

@@ -125,7 +125,8 @@ class BackupManager(
             val localWorkoutNames = db.savedWorkoutDao().getAll().map { it.name }.toMutableSet()
             val rowsByWorkout = backup.savedWorkoutExercises.groupBy { it.workoutId }
             for (workout in backup.savedWorkouts) {
-                if (workout.name in localWorkoutNames) continue
+                // Unnamed workouts (empty name) are never deduplicated by name.
+                if (workout.name.isNotBlank() && workout.name in localWorkoutNames) continue
                 val newId = db.savedWorkoutDao().insert(workout.copy(id = 0))
                 localWorkoutNames += workout.name
                 savedWorkoutsAdded++

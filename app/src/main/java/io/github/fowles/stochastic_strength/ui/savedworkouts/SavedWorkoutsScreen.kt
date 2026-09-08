@@ -57,7 +57,7 @@ fun SavedWorkoutsScreen(
     deleteCandidate?.let { candidate ->
         AlertDialog(
             onDismissRequest = { deleteCandidate = null },
-            title = { Text("Delete \"${candidate.name}\"?") },
+            title = { Text("Delete \"${candidate.displayName}\"?") },
             text = { Text("This saved workout will be removed.") },
             confirmButton = {
                 TextButton(onClick = {
@@ -105,7 +105,7 @@ fun SavedWorkoutsScreen(
                             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(w.name, style = MaterialTheme.typography.titleMedium)
+                                Text(w.displayName, style = MaterialTheme.typography.titleMedium)
                                 Text(
                                     exerciseCountLabel(w.entries.size),
                                     style = MaterialTheme.typography.bodySmall,
@@ -113,7 +113,7 @@ fun SavedWorkoutsScreen(
                                 )
                             }
                             IconButton(onClick = { deleteCandidate = w }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete ${w.name}")
+                                Icon(Icons.Default.Delete, contentDescription = "Delete ${w.displayName}")
                             }
                         }
                     }

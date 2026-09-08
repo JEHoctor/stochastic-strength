@@ -69,8 +69,9 @@ class SummaryViewModel(
 
     fun saveAsWorkout(name: String) {
         viewModelScope.launch {
-            app.workoutRepository.saveSessionAsWorkout(sessionId, name)
-            _message.value = "Saved \"$name\""
+            val id = app.workoutRepository.saveSessionAsWorkout(sessionId, name)
+            val shownAs = app.workoutRepository.getSavedWorkout(id)?.displayName ?: name
+            _message.value = "Saved \"$shownAs\""
         }
     }
 

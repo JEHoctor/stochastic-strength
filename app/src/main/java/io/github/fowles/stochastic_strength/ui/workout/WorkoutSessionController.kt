@@ -19,6 +19,7 @@ import io.github.fowles.stochastic_strength.domain.WorkoutPlanner
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.history.RestQuips
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
+import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutDetail
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import kotlin.random.Random
@@ -305,13 +306,14 @@ class WorkoutSessionController(
     }
 
     /** Saves the current preview rows, in order, with no pinned reps. Null if not on the preview. */
-    suspend fun saveCurrentPlan(name: String): Long? {
+    suspend fun saveCurrentPlan(name: String): SavedWorkoutDetail? {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return null
-        return repository.saveWorkout(
+        val id = repository.saveWorkout(
             id = null,
             name = name,
             entries = preview.plan.exercises.map { SavedWorkoutEntry(it.exercise, reps = null) },
         )
+        return repository.getSavedWorkout(id)
     }
 
     /**

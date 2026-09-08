@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
+import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.ExercisePickerSheet
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
@@ -67,15 +68,28 @@ fun SavedWorkoutEditScreen(
     BackHandler(onBack = saveAndBack)
 
     Scaffold(topBar = { BackTopAppBar(title = "Edit workout", onBack = saveAndBack) }) { paddingValues ->
-        if (!state.loaded) {
-            LoadingBox(contentPadding = paddingValues)
-            return@Scaffold
+        when (state.status) {
+            LoadStatus.LOADING -> {
+                LoadingBox(contentPadding = paddingValues)
+                return@Scaffold
+            }
+            LoadStatus.MISSING -> {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(paddingValues),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("This workout no longer exists.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                return@Scaffold
+            }
+            LoadStatus.LOADED -> Unit
         }
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp)) {
             OutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::setName,
                 label = { Text("Name") },
+                placeholder = { Text(SavedWorkoutNaming.defaultName(state.entries.map { it.exercise.name })) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
