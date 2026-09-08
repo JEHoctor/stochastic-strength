@@ -89,8 +89,10 @@ fun SavedWorkoutEditScreen(
             OutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::setName,
-                label = { Text("Name") },
+                // No label: M3 hides the placeholder behind an in-box label until first focus, and the
+                // derived name must be visible (and track exercise edits) from the start.
                 placeholder = { Text(SavedWorkoutNaming.defaultName(state.entries.map { it.exercise.name })) },
+                supportingText = { Text("Name") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )

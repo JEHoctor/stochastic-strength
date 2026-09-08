@@ -28,7 +28,7 @@ fun NameDialog(
                 value = name,
                 onValueChange = { name = it },
                 singleLine = true,
-                label = { Text("Name") },
+                // No label: it would hide the placeholder until the field is focused.
                 placeholder = { Text(placeholder) },
             )
         },
