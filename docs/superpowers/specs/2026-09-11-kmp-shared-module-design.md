@@ -118,7 +118,7 @@ Source sets and dependencies:
 
 | Source set          | Dependencies |
 |---------------------|--------------|
-| `commonMain`        | `room-runtime`, `sqlite-bundled`, `kotlinx-coroutines-core`, `kotlinx-datetime`, `kotlinx-serialization-json` |
+| `commonMain`        | `room-runtime` (**`api`** — `app` calls DAO methods on `AppDatabase`, whose supertype is `RoomDatabase`, and `configure()` takes a `RoomDatabase.Builder`; Kotlin needs supertypes on the consumer's compile classpath), `sqlite-bundled`, `kotlinx-coroutines-core`, `kotlinx-datetime`, `kotlinx-serialization-json` |
 | `androidMain`       | (nothing beyond common) |
 | `iosMain`           | (nothing beyond common) |
 | `androidHostTest`   | `junit`, `org.json`, `kotlinx-coroutines-test` |
@@ -358,7 +358,11 @@ no `package` or `import` line changes as a result of the move.
   `backtest/BacktestData.kt` gets its path fix. The 3 `domain/strava/` unit
   tests stay in `app` with the code they test.
 - New: `json/JsonTest.kt` (the `org.json` round-trip test),
-  `text/FormatTest.kt` (the printf-subset fidelity test).
+  `text/FormatTest.kt` (the printf-subset fidelity test),
+  `time/SystemShadowingTest.kt`. Also `domain/backup/BackupJsonRoundTripTest.kt`,
+  created in `app` when `BackupJson` is switched to the shim and moved here with
+  the rest — a full `WorkoutBackup` through build → parse, cross-checked with
+  the real `org.json`.
 - `shared/src/androidHostTest/resources/backtest/` — gitignored fixture dir.
 
 **`shared/schemas/` — 19 JSON files by `git mv`.**
