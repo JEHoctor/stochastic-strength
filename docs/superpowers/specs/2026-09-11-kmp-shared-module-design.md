@@ -351,10 +351,12 @@ no `package` or `import` line changes as a result of the move.
 
 **`shared/src/iosMain/kotlin/` — 1 new file:** `text/Format.ios.kt`.
 
-**`shared/src/androidHostTest/kotlin/` — 66 files by `git mv`, 1 edited, 1 new**
+**`shared/src/androidHostTest/kotlin/` — 63 files by `git mv`, 1 edited, 2 new**
 
-- `data/` (4), `domain/` (62, including the 14-file `backtest/` tree).
-  `backtest/BacktestData.kt` gets its path fix.
+- `data/` (4), `domain/` (59, including the 14-file `backtest/` tree and the
+  test-only `CoefficientCompression.kt`/`CoefficientGuesses.kt` analysis helpers).
+  `backtest/BacktestData.kt` gets its path fix. The 3 `domain/strava/` unit
+  tests stay in `app` with the code they test.
 - New: `json/JsonTest.kt` (the `org.json` round-trip test),
   `text/FormatTest.kt` (the printf-subset fidelity test).
 - `shared/src/androidHostTest/resources/backtest/` — gitignored fixture dir.
@@ -364,7 +366,8 @@ no `package` or `import` line changes as a result of the move.
 **`app/` — untouched apart from the build file:** `MainActivity`,
 `StochasticStrengthApp`, `ui/` (66), `location/` (2), `notification/` (2),
 `domain/strava/` (4), `domain/history/HistoryRows.kt`; `res/`, the manifest,
-`src/release`, `src/releaseLocal`; 9 unit tests (`ui/` × 8, `HistoryRowsTest`);
+`src/release`, `src/releaseLocal`; 12 unit tests (`ui/` × 8, `HistoryRowsTest`,
+`domain/strava/` × 3);
 all 20 instrumented tests (2 edited by one line each, see above).
 
 `domain.strava` and `domain.history` temporarily straddle two modules. Kotlin
@@ -450,7 +453,7 @@ Six commits, each with Android CI green:
    `PrescriptionTrace`'s date format. Still in `app/`, still on the JVM, so
    behavior is provably unchanged: the Android actuals delegate to the same
    JVM calls.
-4. **`refactor: move data/ and domain/ into shared`** — `git mv` of 80 + 66
+4. **`refactor: move data/ and domain/ into shared`** — `git mv` of 80 + 63
    files and 19 schemas, plus only the build-file wiring needed to stay green
    (Room and KSP leave `app/`; the androidTest schema-assets line is repointed). **No content edits.** If Room's KSP requires
    `@ConstructedBy` for native targets rather than warning, `ios.yml` is red on
