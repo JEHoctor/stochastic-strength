@@ -95,7 +95,7 @@ Targets:
 
 ```kotlin
 kotlin {
-    androidLibrary {
+    android {   // AGP 9.3 name; `androidLibrary { }` is deprecated
         namespace = "io.github.fowles.stochastic_strength.shared"
         compileSdk { version = release(37) { minorApiLevel = 1 } }   // same form as app; verified
         minSdk = 33
@@ -108,6 +108,9 @@ kotlin {
     listOf(iosArm64(), iosSimulatorArm64()).forEach {
         it.binaries.framework { baseName = "Shared"; isStatic = true }
     }
+    // Migrations keep upstream's `db` parameter name over Room's `connection`;
+    // silence the per-override named-argument warning that choice produces.
+    compilerOptions { freeCompilerArgs.add("-Xwarning-level=PARAMETER_NAME_CHANGED_ON_OVERRIDE:disabled") }
 }
 ```
 
@@ -117,8 +120,8 @@ Source sets and dependencies:
 |---------------------|--------------|
 | `commonMain`        | `room-runtime`, `sqlite-bundled`, `kotlinx-coroutines-core`, `kotlinx-datetime`, `kotlinx-serialization-json` |
 | `androidMain`       | (nothing beyond common) |
+| `iosMain`           | (nothing beyond common) |
 | `androidHostTest`   | `junit`, `org.json`, `kotlinx-coroutines-test` |
-| `iosMain`           | (empty in Phase 1) |
 
 No device-test compilation in `shared` (see Decisions).
 
@@ -148,7 +151,13 @@ add libraries `androidx-sqlite-bundled`, `kotlinx-datetime`,
 
 - The plugin combination configures and builds; `app` consumes `shared` via
   `implementation(project(":shared"))`.
-- `androidLibrary { }` accepts `compileSdk { version = release(37) { minorApiLevel = 1 } }`.
+- The target block is `kotlin { android { } }`; `androidLibrary { }` is deprecated.
+  It accepts `compileSdk { version = release(37) { minorApiLevel = 1 } }`.
+- `kotlin.time.Clock` and `kotlin.concurrent.Volatile` need no opt-in.
+- An explicit import of a same-named declaration shadows the JVM default
+  imports (`java.lang.System`, `kotlin.text.format`) — verified by a host test.
+- `-Xwarning-level=PARAMETER_NAME_CHANGED_ON_OVERRIDE:disabled` is the
+  non-deprecated form of the warning suppression.
 - Task names: `:shared:testAndroidHostTest` (JUnit4 host tests),
   `:shared:compileCommonMainKotlinMetadata` (common-purity check),
   `:shared:linkDebugFrameworkIosSimulatorArm64` (iOS link; disabled on Linux).
@@ -275,6 +284,42 @@ is module-relative; it becomes `src/androidHostTest/resources/backtest`. The
 `.gitignore` entry moves with it. `org.json` stays as a host-test dependency for
 parsing `history.json`.
 
+**JVM-only stdlib calls — no import to grep for.** A scan of the 80 files
+for JVM stdlib members that are not in the common stdlib found three kinds:
+
+| Usage | Sites | Files |
+|-------|-------|-------|
+| `"%.1f".format(x)` (`kotlin.text.format`, JVM-only) | 9 | `WeightFormatter` (3), `PrescriptionTrace` (6) |
+| `System.currentTimeMillis()` (`java.lang.System`) | 8 | `WorkoutPlanner` (1), `WorkoutRepository` (4), `BackupManager` (1), `ExerciseProgressionSeriesBuilder` (1) |
+| `@Volatile` (`kotlin.jvm.Volatile`, default-imported on JVM) | 1 | `DerivedStateStore` |
+
+Same treatment as the JSON shim — **the call sites stay byte-identical; each
+file gains one import line**, because an explicit import shadows a JVM default
+import:
+
+- `text/Format.kt` in `commonMain`: `expect fun String.format(vararg args: Any?): String`.
+  The `androidMain` actual delegates to `java.lang.String.format(this, *args)`,
+  so Android behavior (including its locale-dependence) is unchanged. The
+  `iosMain` actual delegates to a common `internal fun formatPrintfSubset(...)`
+  that implements `%s`, `%d`, and `%.Nf` (half-up rounding, `.` separator),
+  pinned by a host test against `java.lang.String.format(Locale.US, ...)` for
+  every pattern the two files use. `WeightFormatter` and `PrescriptionTrace`
+  add `import io.github.fowles.stochastic_strength.text.format`.
+- `time/System.kt` in `commonMain`: `object System { fun currentTimeMillis(): Long }`
+  over `kotlin.time.Clock.System`. The four files add
+  `import io.github.fowles.stochastic_strength.time.System`. Shadowing a name
+  as familiar as `System` is deliberate: it is what keeps eight call sites in
+  `WorkoutRepository` and friends — files fowles edits constantly — untouched,
+  and a future upstream `System.nanoTime()` fails loudly in `commonMain`
+  rather than silently.
+- `DerivedStateStore` adds `import kotlin.concurrent.Volatile` (a typealias to
+  `kotlin.jvm.Volatile` on the JVM; no behavior change).
+
+`compileCommonMainKotlinMetadata` is the ground truth. If it finds a usage this
+scan missed, it gets the same treatment: an import-line shim where one is
+possible, otherwise the smallest possible edit, and the spec's file list is
+updated.
+
 **Two instrumented tests — one line each.** `Migration12To13Test` and
 `Migration15To16Test` wrap the `SupportSQLiteDatabase` they hand to
 `migrate(...)` in `SupportSQLiteConnection(...)` (see Room section). They stay
@@ -287,23 +332,31 @@ in `app/src/androidTest`.
 Every path keeps the package prefix `io/github/fowles/stochastic_strength/`;
 no `package` or `import` line changes as a result of the move.
 
-**`shared/src/commonMain/kotlin/` — 80 files by `git mv`, 5 edited, 3 new**
+**`shared/src/commonMain/kotlin/` — 80 files by `git mv`, 9 edited, 5 new**
 
 - `data/` — all 33: `AppDatabase.kt` *(edited)*, `Converters.kt`, `dao/` (9),
   `model/` (21), `seed/ExerciseLibrary.kt`.
 - `domain/` — 47 of 52: all except `strava/` (4) and `history/HistoryRows.kt`.
-  Edited: `WorkoutRepository.kt`, `backup/BackupManager.kt` (one import each),
-  `backup/BackupJson.kt` (three imports), `belief/PrescriptionTrace.kt`.
+  Edited, import lines only: `WorkoutRepository.kt` (2), `backup/BackupManager.kt`
+  (2), `backup/BackupJson.kt` (3), `WeightFormatter.kt` (1), `WorkoutPlanner.kt`
+  (1), `progression/ExerciseProgressionSeriesBuilder.kt` (1),
+  `derived/DerivedStateStore.kt` (1). Edited beyond imports:
+  `belief/PrescriptionTrace.kt` (imports plus the 3-line date format).
 - New: `data/AppDatabaseConstructor.kt`, `data/RoomTransactions.kt`,
-  `json/JSONObject.kt` (or one file for the shim; the plan decides).
+  `json/Json.kt` (the `org.json`-shaped shim), `text/Format.kt`,
+  `time/System.kt`.
 
-**`shared/src/androidMain/kotlin/` — 1 new file:** `data/AppDatabase.android.kt`.
+**`shared/src/androidMain/kotlin/` — 2 new files:** `data/AppDatabase.android.kt`,
+`text/Format.android.kt`.
+
+**`shared/src/iosMain/kotlin/` — 1 new file:** `text/Format.ios.kt`.
 
 **`shared/src/androidHostTest/kotlin/` — 66 files by `git mv`, 1 edited, 1 new**
 
 - `data/` (4), `domain/` (62, including the 14-file `backtest/` tree).
   `backtest/BacktestData.kt` gets its path fix.
-- New: `json/JSONShimTest.kt` (the round-trip test).
+- New: `json/JsonTest.kt` (the `org.json` round-trip test),
+  `text/FormatTest.kt` (the printf-subset fidelity test).
 - `shared/src/androidHostTest/resources/backtest/` — gitignored fixture dir.
 
 **`shared/schemas/` — 19 JSON files by `git mv`.**
@@ -380,8 +433,9 @@ on an iOS simulator is Phase 2's opening move.
 Six commits, each with Android CI green:
 
 1. **`build: add shared KMP module`** — settings, catalog, root build file,
-   `shared/build.gradle.kts`; the two adapters (`withTransaction` wrapper, JSON
-   shim) and the shim's round-trip test as the module's first content;
+   `shared/build.gradle.kts`; the four adapters (`withTransaction` wrapper, JSON
+   shim, `String.format` expect/actual, `System` object) and their host tests
+   as the module's first content;
    `app → shared` dependency; `android.yml` additions; new `ios.yml`. Includes
    the negative test of `compileCommonMainKotlinMetadata`. `ios.yml` lands
    here, first, so the macOS plumbing is debugged against a tiny module.
@@ -389,8 +443,13 @@ Six commits, each with Android CI green:
    signatures and visibility, driver, `configure()`, the builder trio extracted
    into a sibling file, the two `withTransaction` import swaps, the two
    one-line instrumented-test wraps.
-3. **`domain: make BackupJson and PrescriptionTrace platform-neutral`** — three
-   import lines and one date format.
+3. **`domain: swap JVM-only calls for the shared shims`** — import-line
+   changes in seven files (`BackupJson`, `WeightFormatter`, `PrescriptionTrace`,
+   `WorkoutPlanner`, `WorkoutRepository`, `BackupManager`,
+   `ExerciseProgressionSeriesBuilder`, `DerivedStateStore`) plus
+   `PrescriptionTrace`'s date format. Still in `app/`, still on the JVM, so
+   behavior is provably unchanged: the Android actuals delegate to the same
+   JVM calls.
 4. **`refactor: move data/ and domain/ into shared`** — `git mv` of 80 + 66
    files and 19 schemas, plus only the build-file wiring needed to stay green
    (Room and KSP leave `app/`; the androidTest schema-assets line is repointed). **No content edits.** If Room's KSP requires
@@ -428,6 +487,7 @@ Predictable hotspots:
 | Belief engine, planner, policy, replay | existing JUnit4 host tests, unchanged | `shared` host tests |
 | UI helpers, `HistoryRows` | existing JUnit4 host tests, unchanged | `app` unit tests |
 | JSON shim fidelity | new round-trip test vs `org.json` | `shared` host tests |
+| printf-subset fidelity | new test vs `java.lang.String.format` | `shared` host tests |
 | `commonMain` purity | `compileCommonMainKotlinMetadata` | local + `android.yml` |
 | iOS portability | `linkDebugFrameworkIosSimulatorArm64` | `ios.yml` |
 | Room migrations, DAOs, repository | existing instrumented tests in `app` (2 one-line edits) | `:app:connectedAndroidTest` on emulator, merge gate |
