@@ -31,12 +31,19 @@ encrypted token storage) with iOS counterparts.
 - **Phase 1 does not touch `ui/`, `location/`, `notification/`, `MainActivity`,
   or `StochasticStrengthApp`.** Only `commonMain`-bound files move. Same
   packages, so no import changes in the files that stay.
-- **Tests follow their code.** 25 `internal` declarations in `domain/`/`data/`
-  are used by tests, and `internal` is module-scoped. `domain/`+`data/` tests
-  move to `shared`; `ui/` tests stay in `app`. Tests stay JUnit4 on the JVM —
-  no migration to `commonTest`, no `kotlin-test`. If iOS-native verification
-  of the belief engine is wanted later, it is a *new* small `commonTest` suite,
-  not a migration of the existing 6.7k lines.
+- **Host (JVM) tests follow their code; device tests stay in `app`.**
+  `domain/`+`data/` unit tests use `internal` symbols (`weightForExerciseTest`,
+  `buildFrame`, ...) and `internal` is module-scoped, so they move to `shared`'s
+  `androidHostTest`; `ui/` unit tests stay in `app`. Instrumented tests do
+  **not** move: AGP 9.3's KMP library plugin has no assets pipeline for device
+  tests (`mergeAndroidDeviceTestAssets` has zero source inputs), and Room's
+  Android `MigrationTestHelper` loads schemas only from assets. `app` already
+  has a working `androidTest` assets pipeline. The only `internal` symbols the
+  device tests reference are the 11 `internal val MIGRATION_*`, which become
+  public. Tests stay JUnit4 on the JVM — no migration to `commonTest`, no
+  `kotlin-test`. If iOS-native verification of the belief engine is wanted
+  later, it is a *new* small `commonTest` suite, not a migration of the
+  existing 6.7k lines.
 - **Phase 1 exit criterion:** Android CI green, plus a macOS CI job that links
   `shared` as an iOS simulator framework, plus one instrumented test run on an
   emulator. No Xcode project, nothing executes on iOS yet.
@@ -90,10 +97,9 @@ Targets:
 kotlin {
     androidLibrary {
         namespace = "io.github.fowles.stochastic_strength.shared"
-        compileSdk = 37          // see "To verify" below
+        compileSdk { version = release(37) { minorApiLevel = 1 } }   // same form as app; verified
         minSdk = 33
         withHostTestBuilder {}
-        withDeviceTestBuilder { sourceSetTreeName = "test" }
         compilerOptions { jvmTarget.set(JvmTarget.JVM_11) }
     }
     iosArm64()
@@ -112,8 +118,9 @@ Source sets and dependencies:
 | `commonMain`        | `room-runtime`, `sqlite-bundled`, `kotlinx-coroutines-core`, `kotlinx-datetime`, `kotlinx-serialization-json` |
 | `androidMain`       | (nothing beyond common) |
 | `androidHostTest`   | `junit`, `org.json`, `kotlinx-coroutines-test` |
-| `androidDeviceTest` | `androidx.test.ext:junit`, `androidx.test:runner`, `room-testing`; `schemas/` as an asset directory |
 | `iosMain`           | (empty in Phase 1) |
+
+No device-test compilation in `shared` (see Decisions).
 
 KSP for Room is per-target: `kspAndroid`, `kspIosArm64`, `kspIosSimulatorArm64`
 each get `room-compiler`. `room { schemaDirectory("$projectDir/schemas") }`.
@@ -125,8 +132,10 @@ address.
 ### `app/build.gradle.kts`
 
 Remove: the `ksp` plugin and `ksp { }` block; `room-runtime`, `room-ktx`,
-`room-compiler`, `room-testing`; the `androidTest` schema-assets line.
-Add: `implementation(projects.shared)`. Everything else is untouched.
+`room-compiler`. Keep `room-testing` (androidTest) and the `androidTest`
+schema-assets line, repointed from `$projectDir/schemas` to
+`$rootDir/shared/schemas`. Add: `implementation(project(":shared"))`.
+Everything else is untouched.
 
 ### Version catalog
 
@@ -135,13 +144,22 @@ Add plugin aliases `kotlin-multiplatform`, `android-kotlin-multiplatform-library
 add libraries `androidx-sqlite-bundled`, `kotlinx-datetime`,
 `kotlinx-serialization-json`. No existing entry changes.
 
-### To verify in the plan, not assumed
+### Verified by a throwaway scaffold (AGP 9.3.2, Kotlin 2.4.10)
 
-- Whether `androidLibrary { }` accepts `compileSdk`'s `release(37) { minorApiLevel = 1 }`
-  form or only `37`. Either is fine (a library compiled against 37 is consumable
-  by an app on 37.1); the plan states which.
-- The exact task names for host tests, device-test compilation, and the
-  simulator framework link under this plugin combination.
+- The plugin combination configures and builds; `app` consumes `shared` via
+  `implementation(project(":shared"))`.
+- `androidLibrary { }` accepts `compileSdk { version = release(37) { minorApiLevel = 1 } }`.
+- Task names: `:shared:testAndroidHostTest` (JUnit4 host tests),
+  `:shared:compileCommonMainKotlinMetadata` (common-purity check),
+  `:shared:linkDebugFrameworkIosSimulatorArm64` (iOS link; disabled on Linux).
+- `compileCommonMainKotlinMetadata` fails on a stray `java.io.File` import with
+  `Unresolved reference 'java'` — the local leak detector works.
+- In `commonMain`, `Dispatchers.IO` needs `import kotlinx.coroutines.IO`.
+- In `kotlinx-datetime` 0.8.0, use `format.format(date)`; the
+  `date.format(format)` member form does not resolve.
+- Pinned versions: `kotlinx-datetime` 0.8.0, `kotlinx-serialization-json`
+  1.11.0 (matches the existing `-core`), `androidx.sqlite:sqlite-bundled` 2.6.2
+  (the version Room 2.8.4 depends on), `androidx.room` Gradle plugin 2.8.4.
 
 ## Room → Room KMP
 
@@ -160,9 +178,21 @@ override fun migrate(db: SQLiteConnection) {
 }
 ```
 
-Diff: 18 signature lines plus two imports. The 56 `db.execSQL(...)` calls do not
-change. A future upstream `MIGRATION_20_21` conflicts on exactly its signature
-line; its body applies clean.
+Diff: 18 signature lines plus two imports, and the word `internal` removed
+from the 11 `internal val MIGRATION_*` declarations so `app`'s instrumented
+tests can still reference them across the module boundary. The 56
+`db.execSQL(...)` calls do not change. A future upstream `MIGRATION_20_21`
+conflicts on exactly its signature line; its body applies clean.
+
+Room's Android `Migration` keeps both overloads. The default
+`migrate(SQLiteConnection)` delegates to `migrate(SupportSQLiteDatabase)` only
+when handed an `androidx.sqlite.driver.SupportSQLiteConnection`; the reverse
+direction throws `NotImplementedError`. Two instrumented tests
+(`Migration12To13Test`, `Migration15To16Test`) call `MIGRATION_X_Y.migrate(db)`
+by hand with a `SupportSQLiteDatabase` — that still compiles after the change
+but fails at runtime. Each gets a one-line wrap:
+`migrate(SupportSQLiteConnection(db))`. `Migration19To20Test` goes through
+`MigrationTestHelper` and needs no edit.
 
 **Transactions — adapter, not rewrite.** New file `data/RoomTransactions.kt` in
 `commonMain`:
@@ -245,6 +275,11 @@ is module-relative; it becomes `src/androidHostTest/resources/backtest`. The
 `.gitignore` entry moves with it. `org.json` stays as a host-test dependency for
 parsing `history.json`.
 
+**Two instrumented tests — one line each.** `Migration12To13Test` and
+`Migration15To16Test` wrap the `SupportSQLiteDatabase` they hand to
+`migrate(...)` in `SupportSQLiteConnection(...)` (see Room section). They stay
+in `app/src/androidTest`.
+
 **Nothing else in the moved files changes.**
 
 ## File map
@@ -271,23 +306,13 @@ no `package` or `import` line changes as a result of the move.
 - New: `json/JSONShimTest.kt` (the round-trip test).
 - `shared/src/androidHostTest/resources/backtest/` — gitignored fixture dir.
 
-**`shared/src/androidDeviceTest/kotlin/` — 15 files by `git mv`, 0 edited**
-
-- `data/` (5: four migration tests, `SavedWorkoutDaoTest`).
-- `domain/` (10): `ActualRepsBackfillTest`, `backup/BackupJsonTest`,
-  `backup/BackupManagerTest`, `DerivedStateBackfillTest`,
-  `FatigueNoDownwardBiasReplayTest`, `LiveInputWritesTest`,
-  `ReplayDerivedStateTest`, `SavedWorkoutRepositoryTest`,
-  `WorkoutRepositoryDebugTest`, `WorkoutRepositoryTest`.
-
 **`shared/schemas/` — 19 JSON files by `git mv`.**
 
 **`app/` — untouched apart from the build file:** `MainActivity`,
 `StochasticStrengthApp`, `ui/` (66), `location/` (2), `notification/` (2),
 `domain/strava/` (4), `domain/history/HistoryRows.kt`; `res/`, the manifest,
 `src/release`, `src/releaseLocal`; 9 unit tests (`ui/` × 8, `HistoryRowsTest`);
-5 instrumented tests (`ui/` × 3, `strava/StravaJsonBuilderInstrumentedTest`,
-`strava/StravaTokenStoreTest`).
+all 20 instrumented tests (2 edited by one line each, see above).
 
 `domain.strava` and `domain.history` temporarily straddle two modules. Kotlin
 permits it; both resolve in later phases.
@@ -296,7 +321,7 @@ permits it; both resolve in later phases.
 
 ### Local, on every step
 
-1. `:app:testDebugUnitTest` plus `shared`'s host-test task. The same 378
+1. `:app:testDebugUnitTest` plus `:shared:testAndroidHostTest`. The same 378
    tests, now split across the two modules; the total must not change.
 2. `:app:lintDebug`, `:app:assembleDebug`.
 3. **`:shared:compileCommonMainKotlinMetadata` — the local leak detector.** It
@@ -305,8 +330,9 @@ permits it; both resolve in later phases.
    macOS runner later. The plan's first step includes a deliberate negative
    test: add a `java.io.File` import to a `commonMain` file, confirm the task
    fails, remove it.
-4. `shared`'s device-test compile task — no device needed; proves the 15 moved
-   instrumented tests still resolve every `internal` symbol.
+4. `:app:compileDebugAndroidTestKotlin` — no device needed; proves the
+   instrumented tests still resolve the now-public `MIGRATION_*` vals across
+   the module boundary.
 5. iOS targets are declared and skipped on Linux with a warning. Expected.
 
 ### CI
@@ -337,10 +363,12 @@ code lives in `shared`."
 
 1. `android.yml` green on the final commit.
 2. `ios.yml` green on the final commit.
-3. **One `connectedAndroidTest` run on an emulator on the dev VM** (which has
-   `/dev/kvm`, 12 cores, 15 GB). The only way to execute migration, DAO, and
-   repository tests against the bundled driver. Standing up a headless
-   emulator is its own plan step; it serves every later phase.
+3. **One `:app:connectedAndroidTest` run on an emulator on the dev VM** (which
+   has `/dev/kvm`, 12 cores, 15 GB) — the command `CLAUDE.md` already
+   documents. The only way to execute migration, DAO, and repository tests
+   against the bundled driver, and the only thing that catches the
+   `NotImplementedError` class of mistake. Standing up a headless emulator is
+   its own plan step; it serves every later phase.
 
 ### Not verified in Phase 1
 
@@ -358,13 +386,14 @@ Six commits, each with Android CI green:
    the negative test of `compileCommonMainKotlinMetadata`. `ios.yml` lands
    here, first, so the macOS plumbing is debugged against a tiny module.
 2. **`data: convert Room to KMP APIs in place`** — still in `app/`. Migration
-   signatures, driver, `configure()`, the builder trio extracted into a sibling
-   file, the two `withTransaction` import swaps.
+   signatures and visibility, driver, `configure()`, the builder trio extracted
+   into a sibling file, the two `withTransaction` import swaps, the two
+   one-line instrumented-test wraps.
 3. **`domain: make BackupJson and PrescriptionTrace platform-neutral`** — three
    import lines and one date format.
-4. **`refactor: move data/ and domain/ into shared`** — `git mv` of 80 + 66 + 15
+4. **`refactor: move data/ and domain/ into shared`** — `git mv` of 80 + 66
    files and 19 schemas, plus only the build-file wiring needed to stay green
-   (Room and KSP leave `app/`). **No content edits.** If Room's KSP requires
+   (Room and KSP leave `app/`; the androidTest schema-assets line is repointed). **No content edits.** If Room's KSP requires
    `@ConstructedBy` for native targets rather than warning, `ios.yml` is red on
    this commit only; Android is green regardless.
 5. **`data: wire AppDatabase for iOS construction`** — `@ConstructedBy`, the
@@ -401,5 +430,5 @@ Predictable hotspots:
 | JSON shim fidelity | new round-trip test vs `org.json` | `shared` host tests |
 | `commonMain` purity | `compileCommonMainKotlinMetadata` | local + `android.yml` |
 | iOS portability | `linkDebugFrameworkIosSimulatorArm64` | `ios.yml` |
-| Room migrations, DAOs, repository | existing instrumented tests, unchanged | emulator, merge gate |
+| Room migrations, DAOs, repository | existing instrumented tests in `app` (2 one-line edits) | `:app:connectedAndroidTest` on emulator, merge gate |
 | Upstream drift | guard step | `android.yml` |
