@@ -57,7 +57,7 @@ class BacktestData private constructor(
         BacktestData(backup, weightUnit, compressedCoef(backup, lambda))
 
     companion object {
-        private val dir = File("src/test/resources/backtest")
+        private val dir = File("src/androidHostTest/resources/backtest")
         fun historyFile(): File = File(dir, "history.json")
         fun baselineFile(): File = File(dir, "phase0_baseline.json")
 

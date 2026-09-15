@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.data
 
+import androidx.room.ConstructedBy
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
@@ -45,6 +46,7 @@ import kotlinx.coroutines.IO
     version = 20,
     exportSchema = true,
 )
+@ConstructedBy(AppDatabaseConstructor::class)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
