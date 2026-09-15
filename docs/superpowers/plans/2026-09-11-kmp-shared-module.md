@@ -1616,7 +1616,9 @@ Expected: `android.yml` `completed success`.
 
 ### Task 12: Emulator gate — `:app:connectedAndroidTest`
 
-**Files:** none changed. This is the merge gate: the only execution of the migration, DAO, and repository tests against the bundled driver.
+**Files:** `.github/workflows/android-instrumented.yml` (created during execution; see below). This is the merge gate: the only execution of the migration, DAO, and repository tests against the bundled driver.
+
+> **Execution note (2026-09-15):** the local-emulator steps below could not run on the dev VM — emulator 37.1.11's bundled SwiftShader segfaults in JIT-generated code ~15 s into guest boot under nested virtualization, with `-gpu swiftshader_indirect`, `off`, and `guest` alike (core dumps show frame #0 at an anonymous address inside `lib64/gles_swiftshader/libGLESv2.so`; SELinux `deny_execmem` is off; KVM is usable). The gate was therefore moved to GitHub Actions, where the Linux runners expose KVM: `.github/workflows/android-instrumented.yml` runs `:app:connectedAndroidTest` via `reactivecircus/android-emulator-runner` on an API 35 `google_apis` x86_64 image, on pushes to the working branches and on demand. Steps 1–4 remain the local procedure for when the host renderer issue is resolved (candidates: a different emulator build via `sdkmanager --channel=1 emulator`, or `-gpu host` once a headless EGL path works on the VM).
 
 - [ ] **Step 1: Install a system image and create a headless AVD (one-time on the VM)**
 
