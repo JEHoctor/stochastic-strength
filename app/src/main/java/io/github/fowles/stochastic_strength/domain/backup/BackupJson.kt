@@ -17,9 +17,9 @@ import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import org.json.JSONArray
-import org.json.JSONException
-import org.json.JSONObject
+import io.github.fowles.stochastic_strength.json.JSONArray
+import io.github.fowles.stochastic_strength.json.JSONException
+import io.github.fowles.stochastic_strength.json.JSONObject
 
 // --- shared helpers ---
 

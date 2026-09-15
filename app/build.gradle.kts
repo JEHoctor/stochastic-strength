@@ -111,6 +111,7 @@ dependencies {
     testImplementation(libs.json)
     testImplementation(libs.kotlinx.coroutines.test)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.datetime)
     // Not used directly. Room 2.8.4's MigrationTestHelper needs kotlinx-serialization >= 1.8.1, but
     // lifecycle 2.11 pulls 1.7.3 into the app runtime and Gradle's consistent resolution then pins
     // the androidTest classpath to that. Declaring it here lifts the app runtime to what Room needs.

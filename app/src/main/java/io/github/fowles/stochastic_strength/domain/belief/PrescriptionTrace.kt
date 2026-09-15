@@ -9,9 +9,14 @@ import io.github.fowles.stochastic_strength.domain.ProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import io.github.fowles.stochastic_strength.text.format
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.format.MonthNames
+import kotlinx.datetime.format.Padding
+import kotlinx.datetime.format.char
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Instant
 import kotlin.math.exp
 import kotlin.math.sqrt
 
@@ -29,7 +34,10 @@ data class PrescriptionTrace(val lines: List<TraceLine>, val finalWeightKg: Floa
  * of truth end to end.
  */
 object PrescriptionTraceBuilder {
-    private val dateFormat get() = SimpleDateFormat("MMM d", Locale.US)
+    // "MMM d" in English, in the device's zone — what SimpleDateFormat("MMM d", Locale.US) produced.
+    private val monthDay = LocalDate.Format { monthName(MonthNames.ENGLISH_ABBREVIATED); char(' '); day(Padding.NONE) }
+    private fun formatMonthDay(epochMs: Long): String =
+        monthDay.format(Instant.fromEpochMilliseconds(epochMs).toLocalDateTime(TimeZone.currentSystemDefault()).date)
 
     private fun sigmaPercent(uncertainty: Float): Float = (exp(sqrt(uncertainty.toDouble())).toFloat() - 1f) * 100f
 
@@ -61,7 +69,7 @@ object PrescriptionTraceBuilder {
             TraceLine(
                 "Own belief",
                 "~${WeightFormatter.format(own.e1rm, weightUnit)} (±${"%.0f".format(sigmaPercent(own.uncertainty))}%), " +
-                    "last updated ${dateFormat.format(Date(foldedAt))}",
+                    "last updated ${formatMonthDay(foldedAt)}",
             )
         } else {
             TraceLine("Own belief", "none — cold exercise, leaning on siblings")

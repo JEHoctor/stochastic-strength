@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.text.format
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.roundToInt

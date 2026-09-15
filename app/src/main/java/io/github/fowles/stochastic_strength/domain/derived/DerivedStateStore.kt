@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.derived
 
+import kotlin.concurrent.Volatile
 import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup

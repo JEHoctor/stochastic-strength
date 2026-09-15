@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
+import io.github.fowles.stochastic_strength.time.System
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WeightUnit

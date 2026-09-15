@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain
 
+import io.github.fowles.stochastic_strength.time.System
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
