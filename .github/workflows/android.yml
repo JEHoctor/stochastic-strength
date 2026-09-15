@@ -43,10 +43,20 @@ jobs:
       # No STOCHASTIC_UPLOAD_* properties here on purpose: debug and test tasks must work
       # without the upload keystore. Release tasks are guarded in app/build.gradle.kts.
       - name: Unit tests
-        run: ./gradlew :app:testDebugUnitTest
+        run: ./gradlew :app:testDebugUnitTest :shared:testAndroidHostTest
+
+      # commonMain compiles against only the common stdlib here. An accidental android.* or
+      # java.* import in shared code fails this step on Linux instead of on a macOS runner.
+      - name: Common-code purity
+        run: ./gradlew :shared:compileCommonMainKotlinMetadata
 
       - name: Lint
         run: ./gradlew :app:lintDebug
+
+      # No device: proves the instrumented tests still resolve every symbol across the module
+      # boundary. They execute at the emulator gate, not here.
+      - name: Compile instrumented tests
+        run: ./gradlew :app:compileDebugAndroidTestKotlin
 
       - name: Assemble debug APK
         run: ./gradlew :app:assembleDebug
@@ -66,4 +76,6 @@ jobs:
           path: |
             app/build/reports/
             app/build/test-results/
+            shared/build/reports/
+            shared/build/test-results/
           if-no-files-found: ignore
