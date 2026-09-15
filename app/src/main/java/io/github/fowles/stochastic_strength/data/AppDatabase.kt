@@ -1,12 +1,12 @@
 package io.github.fowles.stochastic_strength.data
 
-import android.content.Context
 import androidx.room.Database
-import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import androidx.sqlite.execSQL
 import io.github.fowles.stochastic_strength.data.dao.BaselineOverrideDao
 import io.github.fowles.stochastic_strength.data.dao.ExerciseDao
 import io.github.fowles.stochastic_strength.data.dao.ExerciseHurtStateDao
@@ -26,7 +26,8 @@ import io.github.fowles.stochastic_strength.data.model.SavedWorkoutExercise
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 
 @Database(
     entities = [
@@ -58,14 +59,14 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         private val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("UPDATE exercises SET equipment = 'BARBELL' WHERE name = 'Stiff-Leg Deadlift'")
                 db.execSQL("UPDATE exercises SET isUnilateral = 1 WHERE name IN ('Lunge', 'Pallof Press', 'Kettlebell Clean and Press')")
             }
         }
 
         private val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("ALTER TABLE exercises ADD COLUMN isTimed INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("UPDATE exercises SET isTimed = 1 WHERE name IN ('Plank', 'Mountain Climber')")
                 db.execSQL("ALTER TABLE workout_sets ADD COLUMN durationSeconds INTEGER")
@@ -73,20 +74,20 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("ALTER TABLE workout_sessions ADD COLUMN stravaActivityId INTEGER")
             }
         }
 
         private val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("UPDATE exercises SET primaryMuscle = 'HAMSTRINGS', secondaryMuscles = 'BACK,GLUTES' WHERE name = 'Deadlift'")
                 db.execSQL("UPDATE exercises SET primaryMuscle = 'HAMSTRINGS', secondaryMuscles = 'BACK' WHERE name = 'Good Morning'")
             }
         }
 
         private val MIGRATION_6_7 = object : Migration(6, 7) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+            override fun migrate(db: SQLiteConnection) {
                 // Convert baselineWeight from 10RM to 1RM: 1RM = 10RM * (1 + 10/30) = 10RM * 4/3
                 // Rounded to nearest 0.5 kg increment to match internal storage convention.
                 db.execSQL("""
@@ -97,7 +98,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private val MIGRATION_7_8 = object : Migration(7, 8) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `baseline_change_log` (
                         `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -116,7 +117,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private val MIGRATION_8_9 = object : Migration(8, 9) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `coefficient_change_log` (
                         `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -132,14 +133,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        internal val MIGRATION_9_10 = object : Migration(9, 10) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("ALTER TABLE workout_sets ADD COLUMN actualReps INTEGER")
             }
         }
 
-        internal val MIGRATION_10_11 = object : Migration(10, 11) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("ALTER TABLE user_profile ADD COLUMN actualRepsBackfilled INTEGER NOT NULL DEFAULT 0")
             }
         }
@@ -154,8 +155,8 @@ abstract class AppDatabase : RoomDatabase() {
         //   - coefficient_change_log → coefficient_history: rename derived-state table.
         //   - Migrate MANUAL_OVERRIDE rows from baseline_change_log to baseline_override.
         //   - Synthesize initial baseline rows per muscle into baseline_override.
-        internal val MIGRATION_11_12 = object : Migration(11, 12) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SQLiteConnection) {
                 // 1. user_profile: drop actualRepsBackfilled, recreate-table.
                 db.execSQL("""
                     CREATE TABLE `user_profile_new` (
@@ -296,38 +297,38 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        internal val MIGRATION_12_13 = object : Migration(12, 13) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("ALTER TABLE baseline_history ADD COLUMN heuristicName TEXT")
                 db.execSQL("ALTER TABLE baseline_history ADD COLUMN heuristicMetadata TEXT")
             }
         }
 
-        internal val MIGRATION_13_14 = object : Migration(13, 14) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("DROP TABLE IF EXISTS muscle_group_strength")
                 db.execSQL("DROP TABLE IF EXISTS baseline_history")
                 db.execSQL("DROP TABLE IF EXISTS coefficient_history")
             }
         }
 
-        internal val MIGRATION_14_15 = object : Migration(14, 15) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("ALTER TABLE user_profile ADD COLUMN preferredRepMin INTEGER")
                 db.execSQL("ALTER TABLE user_profile ADD COLUMN preferredRepMax INTEGER")
             }
         }
 
-        internal val MIGRATION_15_16 = object : Migration(15, 16) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL(
                     "ALTER TABLE baseline_override ADD COLUMN reason TEXT NOT NULL DEFAULT 'OVERRIDE'"
                 )
             }
         }
 
-        internal val MIGRATION_16_17 = object : Migration(16, 17) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `exercise_strength_override` (" +
                         "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -340,15 +341,15 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        internal val MIGRATION_17_18 = object : Migration(17, 18) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("ALTER TABLE `exercises` ADD COLUMN `isAsymmetric` INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("UPDATE `exercises` SET `isAsymmetric` = 1 WHERE `name` = 'T-Bar Row'")
             }
         }
 
-        internal val MIGRATION_18_19 = object : Migration(18, 19) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("DROP TABLE IF EXISTS `exercise_strength_override`")
                 db.execSQL(
                     "CREATE TABLE `user_profile_new` (" +
@@ -366,8 +367,8 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        internal val MIGRATION_19_20 = object : Migration(19, 20) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+        val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `saved_workout` (" +
                         "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -386,24 +387,9 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        @Volatile private var INSTANCE: AppDatabase? = null
-
-        fun getInstance(context: Context, scope: CoroutineScope): AppDatabase =
-            INSTANCE ?: synchronized(this) {
-                INSTANCE ?: buildDatabase(context, scope).also { INSTANCE = it }
-            }
-
-        fun reset(context: Context, scope: CoroutineScope): AppDatabase {
-            synchronized(this) {
-                INSTANCE?.close()
-                INSTANCE = null
-            }
-            context.deleteDatabase("stochastic_strength.db")
-            return getInstance(context, scope)
-        }
-
-        private fun buildDatabase(context: Context, scope: CoroutineScope) =
-            Room.databaseBuilder(context, AppDatabase::class.java, "stochastic_strength.db")
+        /** Applies every migration and the platform-neutral driver/dispatcher; platforms supply the builder. */
+        fun configure(builder: RoomDatabase.Builder<AppDatabase>): RoomDatabase.Builder<AppDatabase> =
+            builder
                 .addMigrations(
                     MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
@@ -411,6 +397,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
                     MIGRATION_18_19, MIGRATION_19_20,
                 )
-                .build()
+                .setDriver(BundledSQLiteDriver())
+                .setQueryCoroutineContext(Dispatchers.IO)
     }
 }

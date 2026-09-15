@@ -101,6 +101,7 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.play.services.location)
     implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.sqlite.bundled)
     implementation(libs.vico.compose.m3)
     implementation(libs.reorderable)
     implementation(libs.okhttp)

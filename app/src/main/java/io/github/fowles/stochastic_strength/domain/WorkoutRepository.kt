@@ -1,6 +1,6 @@
 package io.github.fowles.stochastic_strength.domain
 
-import androidx.room.withTransaction
+import io.github.fowles.stochastic_strength.data.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.BaselineHistory

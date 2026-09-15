@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.data
 
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.driver.SupportSQLiteConnection
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -43,7 +44,7 @@ class Migration15To16Test {
                 .build()
         )
         val db = helper.writableDatabase
-        AppDatabase.MIGRATION_15_16.migrate(db)
+        AppDatabase.MIGRATION_15_16.migrate(SupportSQLiteConnection(db))
         return db
     }
 
