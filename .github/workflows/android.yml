@@ -20,6 +20,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # After `git merge upstream/main`, a file fowles adds under domain/ or data/ lands here,
+      # compiles fine, and is silently absent from commonMain. Make that loud. Allowlisted
+      # entries are the Android-only files later phases move; shrink the list as they go.
+      - name: Guard against shared-layer code stranded in app
+        run: |
+          base=app/src/main/java/io/github/fowles/stochastic_strength
+          stray=$(find "$base/domain" "$base/data" -name '*.kt' 2>/dev/null \
+                  | grep -v '/domain/strava/' \
+                  | grep -v '/domain/history/HistoryRows.kt' || true)
+          if [ -n "$stray" ]; then
+            echo "These files belong in shared/src/commonMain, not app/:"; echo "$stray"; exit 1
+          fi
+
       # toolchainVersion=21 in gradle/gradle-daemon-jvm.properties. Providing the JDK
       # here is faster than letting Gradle auto-provision it from foojay on every run.
       - name: Set up JDK 21
