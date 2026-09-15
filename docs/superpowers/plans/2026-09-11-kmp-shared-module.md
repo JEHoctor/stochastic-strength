@@ -21,7 +21,10 @@
 - `ui/`, `location/`, `notification/`, `MainActivity`, `StochasticStrengthApp`, `domain/strava/`, `domain/history/HistoryRows.kt`, all of `app/src/androidTest`, and 12 unit tests stay in `app`.
 - Shims live in new files; upstream-facing files change by import lines only (exceptions, all in the spec: `AppDatabase.kt`, `PrescriptionTrace.kt`'s date format, two one-line instrumented-test wraps).
 - Verified task names: `:shared:testAndroidHostTest`, `:shared:compileCommonMainKotlinMetadata`, `:shared:linkDebugFrameworkIosSimulatorArm64`, `:app:compileDebugAndroidTestKotlin`.
-- Every commit message ends with `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
+- Every commit message ends with both trailers, per `~/Projects/CLAUDE.md`:
+  `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` then
+  `Claude-Session: https://claude.ai/code/session_01UscjZNxDbAXotuM4Y1ojLh`.
+  Commit author is the human (global git identity); never set a Claude identity.
 - The spec's six commits map to tasks as: commit 1 = Tasks 1–6; commit 2 = Task 7; commit 3 = Task 8; commit 4 = Task 9; commit 5 = Task 10; commit 6 = Task 11. Task 12 is the merge gate.
 - Environment: `export ANDROID_HOME=$HOME/Android/Sdk` (set in `~/.bashrc` on the dev VM). All `./gradlew` commands run from the repo root.
 
@@ -214,7 +217,8 @@ pairing; the KMP plugin no longer coexists with com.android.application in one
 module). Targets android, iosArm64, iosSimulatorArm64; Room KSP per target;
 no Compose yet. No sources move in this commit.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UscjZNxDbAXotuM4Y1ojLh"
 ```
 
 ---
@@ -258,7 +262,8 @@ Expected: `BUILD SUCCESSFUL`, no `e:` lines.
 git add shared/src/commonMain/kotlin/io/github/fowles/stochastic_strength/data/RoomTransactions.kt
 git commit -m "shared: withTransaction adapter over useWriterConnection
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UscjZNxDbAXotuM4Y1ojLh"
 ```
 
 ---
@@ -564,7 +569,8 @@ git commit -m "shared: org.json-shaped JSON shim over kotlinx.serialization
 Exactly the subset BackupJson uses, so that file will change by three import
 lines. Round-trip fidelity against the real org.json is pinned by host tests.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UscjZNxDbAXotuM4Y1ojLh"
 ```
 
 ---
@@ -745,7 +751,8 @@ Expected: `BUILD SUCCESSFUL`. (`compileIosMainKotlinMetadata` runs on Linux; ful
 git add shared/src/commonMain/kotlin/io/github/fowles/stochastic_strength/text shared/src/androidMain/kotlin/io/github/fowles/stochastic_strength/text shared/src/iosMain/kotlin/io/github/fowles/stochastic_strength/text shared/src/androidHostTest/kotlin/io/github/fowles/stochastic_strength/text
 git commit -m "shared: String.format shim (Java on Android, printf subset on iOS)
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UscjZNxDbAXotuM4Y1ojLh"
 ```
 
 ---
@@ -825,7 +832,8 @@ Expected: `BUILD SUCCESSFUL`.
 git add shared/src/commonMain/kotlin/io/github/fowles/stochastic_strength/time shared/src/androidHostTest/kotlin/io/github/fowles/stochastic_strength/time
 git commit -m "shared: System.currentTimeMillis shim over kotlin.time.Clock
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UscjZNxDbAXotuM4Y1ojLh"
 ```
 
 ---
@@ -939,7 +947,8 @@ git commit -m "ci: shared-module checks in android.yml; new ios.yml links the si
 ios.yml lands now, on a tiny module, so the macOS plumbing (Kotlin/Native
 toolchain, ~/.konan cache, framework link) is debugged before any code moves.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UscjZNxDbAXotuM4Y1ojLh"
 git push -u origin claude/quirky-gauss-op88og
 ```
 
@@ -1116,7 +1125,8 @@ withTransaction call sites unchanged; import swapped to the shared adapter.
 Two migration tests that hand-invoke migrate(db) wrap the support database in
 SupportSQLiteConnection, since the default overload throws at runtime.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UscjZNxDbAXotuM4Y1ojLh"
 ```
 
 ---
@@ -1341,7 +1351,8 @@ with identical output. Call sites are byte-identical; on the JVM every shim
 delegates to the call it replaces. A new host test round-trips a full backup
 and cross-checks the output with the real org.json.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UscjZNxDbAXotuM4Y1ojLh"
 ```
 
 ---
@@ -1477,7 +1488,8 @@ changes. app/build.gradle.kts loses Room, KSP, and the schema location, and
 repoints its androidTest schema assets at shared/schemas. domain/strava/ and
 domain/history/HistoryRows.kt stay in app with their consumers.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UscjZNxDbAXotuM4Y1ojLh"
 git show --stat HEAD | grep -cE "=> " 
 ```
 
@@ -1541,7 +1553,8 @@ git commit -m "data: wire AppDatabase for iOS construction; backtest fixture pat
 reflection on iOS (separate from the rename commit so that one stays pure).
 BacktestData's module-relative fixture path follows the tests to shared.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UscjZNxDbAXotuM4Y1ojLh"
 git push
 ```
 
@@ -1592,7 +1605,8 @@ git commit -m "ci: guard against shared-layer code stranded in app
 
 Separate commit so it can be cherry-picked out of any upstream PR.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UscjZNxDbAXotuM4Y1ojLh"
 git push
 ```
 
