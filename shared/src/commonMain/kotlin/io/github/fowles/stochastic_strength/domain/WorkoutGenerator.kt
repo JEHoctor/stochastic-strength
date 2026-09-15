@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain
 
+import io.github.fowles.stochastic_strength.collections.merge
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise

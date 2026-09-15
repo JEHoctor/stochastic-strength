@@ -67,9 +67,7 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
                 session = session,
                 locationName = session.locationId?.let { locations[it]?.name },
                 exerciseNames = repository.getSessionExerciseNames(session.id),
-                durationSeconds = if (session.endTime != null)
-                    (session.endTime - session.startTime) / 1000L
-                else 0L,
+                durationSeconds = session.endTime?.let { (it - session.startTime) / 1000L } ?: 0L,
             )
         }
         val workoutDays = HistoryRows.workoutDays(

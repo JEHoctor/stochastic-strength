@@ -58,8 +58,9 @@ suspend fun loadWorkoutSummary(db: AppDatabase, sessionId: Long): WorkoutSummary
                 },
         )
     }
-    val duration = if (session != null && session.endTime != null) {
-        (session.endTime - session.startTime) / 1000
+    val endTime = session?.endTime
+    val duration = if (session != null && endTime != null) {
+        (endTime - session.startTime) / 1000
     } else 0L
     return WorkoutSummaryData(
         startTime = session?.startTime ?: 0L,
