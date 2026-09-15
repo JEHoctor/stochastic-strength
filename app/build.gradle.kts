@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
 }
 
 // Present on a machine configured to sign uploads (see ~/.gradle/gradle.properties).
@@ -69,12 +68,9 @@ android {
     }
 
     sourceSets {
-        getByName("androidTest").assets.directories.add("$projectDir/schemas")
+        // Room writes schemas in :shared; MigrationTestHelper reads them from this module's test assets.
+        getByName("androidTest").assets.directories.add("$rootDir/shared/schemas")
     }
-}
-
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -98,24 +94,15 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.compose.material.icons.extended)
-    implementation(libs.androidx.room.runtime)
     implementation(libs.play.services.location)
-    implementation(libs.androidx.room.ktx)
-    implementation(libs.androidx.sqlite.bundled)
     implementation(libs.vico.compose.m3)
     implementation(libs.reorderable)
     implementation(libs.okhttp)
     implementation(libs.tink.android)
-    ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.json)
     testImplementation(libs.kotlinx.coroutines.test)
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.kotlinx.datetime)
-    // Not used directly. Room 2.8.4's MigrationTestHelper needs kotlinx-serialization >= 1.8.1, but
-    // lifecycle 2.11 pulls 1.7.3 into the app runtime and Gradle's consistent resolution then pins
-    // the androidTest classpath to that. Declaring it here lifts the app runtime to what Room needs.
-    implementation(libs.kotlinx.serialization.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
