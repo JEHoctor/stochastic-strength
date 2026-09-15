@@ -1,7 +1,7 @@
 # KMP shared module: move `data/` and `domain/` to `commonMain`
 
 **Date:** 2026-09-11
-**Status:** approved design, pending implementation plan
+**Status:** implemented on branch claude/quirky-gauss-op88og; see "As built"
 
 ## Goal
 
@@ -499,3 +499,20 @@ Predictable hotspots:
 | iOS portability | `linkDebugFrameworkIosSimulatorArm64` | `ios.yml` |
 | Room migrations, DAOs, repository | existing instrumented tests in `app` (2 one-line edits) | `:app:connectedAndroidTest` on emulator, merge gate |
 | Upstream drift | guard step | `android.yml` |
+
+## As built (2026-09-15)
+
+Corrections and additions found during implementation and the final whole-branch review, superseding the estimates above where they differ.
+
+- **12 schema files, not 19.** `shared/schemas/io.github.fowles.stochastic_strength.data.AppDatabase/` holds versions 9–20 (12 files); the spec's "19 JSON files by `git mv`" over-counted.
+- **Three one-line instrumented-test wraps, not two.** `Migration12To13Test.kt` and `Migration15To16Test.kt` each call `MIGRATION_X_Y.migrate(SupportSQLiteConnection(db))` as planned, and so does `MigrationTest.kt` (its `MIGRATION_11_12.migrate(...)` call), which the spec missed.
+- **`StochasticStrengthApp.kt` gained two imports** (`data.getInstance`, `data.reset`): Kotlin's Companion-object extension functions need an explicit import from the declaring package even when the class itself is already imported.
+- **Three `ui/` local-val edits**, not zero: `WorkoutSummaryData.kt`, `history/HistoryViewModel.kt`, `summary/SummaryViewModel.kt`. K2 forbids smart-casting a `val` declared in another module without an explicit type check pattern the compiler can verify locally, so each needed a small local rewrite.
+- **`collections/Merge.kt`** — a shim for `java.util.Map.merge`, missed by the initial import scan and caught only when `compileCommonMainKotlinMetadata` failed on a JVM-only call in `commonMain`.
+- **`shared/.gitignore`** — added for the module's own build output and the gitignored `androidHostTest/resources/backtest/` fixture directory; not called out in the file map above.
+- **`String.format`'s iOS `fixed()`** rounds on the shortest decimal representation of the `Double`, not by scaling the float and truncating — the naive approach produces off-by-one-ULP rounding differences from the JVM `Formatter` on some values.
+- **The instrumented gate runs on GitHub-hosted runners** (`android-instrumented.yml`), not locally or on the dev VM: the dev VM's emulator has no KVM passthrough and SwiftShader (its software GL fallback) segfaults on boot. `BundledDriverMigrationTest` (final-review addition, see F1 above) is the only test in that run that opens the database through `AppDatabase.configure()`, the bundled-SQLite-driver production path; the rest of the instrumented suite exercises Room's SupportSQLite compat path.
+- **`MergeTest`** calls the shim through an import alias (`merge as shimMerge`) rather than a plain `merge` call, so the test actually runs the shim instead of resolving to `java.util.Map.merge` on the JVM.
+- **`PrescriptionTraceBuilder.formatMonthDay`** is `internal`, not `private`, specifically so a host test can pin it against `SimpleDateFormat("MMM d", Locale.US)` directly.
+- **The "Decisions" section's exceptions list is superseded by this section.** "Phase 1 does not touch `ui/`, `location/`, `notification/`, `MainActivity`, or `StochasticStrengthApp`" undersold it: `ui/` (3 local-val edits) and `StochasticStrengthApp` (2 imports) both needed small changes to keep compiling under K2/KMP, listed above.
+- **Test totals at a77db3c: 395 host tests + 117 instrumented tests.**
