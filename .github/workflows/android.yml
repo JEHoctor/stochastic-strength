@@ -21,7 +21,8 @@ jobs:
       - uses: actions/checkout@v5
 
       # After `git merge upstream/main`, a file fowles adds under domain/ or data/ lands here,
-      # compiles fine, and is silently absent from commonMain. Make that loud. Allowlisted
+      # compiles fine, and is silently absent from commonMain. Make that loud. Also guards
+      # against a schema file landing under app/schemas instead of shared/schemas. Allowlisted
       # entries are the Android-only files later phases move; shrink the list as they go.
       - name: Guard against shared-layer code stranded in app
         run: |
@@ -29,8 +30,9 @@ jobs:
           stray=$(find "$base/domain" "$base/data" -name '*.kt' 2>/dev/null \
                   | grep -v '/domain/strava/' \
                   | grep -v '/domain/history/HistoryRows.kt' || true)
+          if [ -d app/schemas ]; then stray="$stray"$'\n'"$(find app/schemas -type f)"; fi
           if [ -n "$stray" ]; then
-            echo "These files belong in shared/src/commonMain, not app/:"; echo "$stray"; exit 1
+            echo "These files belong in shared/ (sources in shared/src/commonMain, schemas in shared/schemas), not app/:"; echo "$stray"; exit 1
           fi
 
       # toolchainVersion=21 in gradle/gradle-daemon-jvm.properties. Providing the JDK

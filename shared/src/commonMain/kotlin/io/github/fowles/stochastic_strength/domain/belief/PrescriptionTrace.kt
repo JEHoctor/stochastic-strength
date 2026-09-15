@@ -36,7 +36,7 @@ data class PrescriptionTrace(val lines: List<TraceLine>, val finalWeightKg: Floa
 object PrescriptionTraceBuilder {
     // "MMM d" in English, in the device's zone — what SimpleDateFormat("MMM d", Locale.US) produced.
     private val monthDay = LocalDate.Format { monthName(MonthNames.ENGLISH_ABBREVIATED); char(' '); day(Padding.NONE) }
-    private fun formatMonthDay(epochMs: Long): String =
+    internal fun formatMonthDay(epochMs: Long): String =
         monthDay.format(Instant.fromEpochMilliseconds(epochMs).toLocalDateTime(TimeZone.currentSystemDefault()).date)
 
     private fun sigmaPercent(uncertainty: Float): Float = (exp(sqrt(uncertainty.toDouble())).toFloat() - 1f) * 100f

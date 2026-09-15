@@ -1,8 +1,10 @@
 name: Android instrumented
 
-# The migration, DAO, and repository tests are instrumented; this is the only place they run
-# against the bundled SQLite driver. GitHub's Linux runners expose KVM, so the emulator boots
-# at native speed. Slow (~15 min), so it runs on the working branches and on demand, not on PRs.
+# The migration, DAO, and repository tests are instrumented; `BundledDriverMigrationTest` is the
+# only test that opens the database through `AppDatabase.configure()`, i.e. the bundled SQLite
+# driver the app ships with; the rest exercise Room's SupportSQLite compat path. GitHub's Linux
+# runners expose KVM, so the emulator boots at native speed. Slow (~15 min), so it runs on the
+# working branches and on demand, not on PRs.
 on:
   push:
     branches: [main, 'claude/**']
