@@ -35,9 +35,13 @@ Android-only services, and the instrumented tests). `shared/` is a Kotlin Multip
 layers in `commonMain`; it is the seed of the iOS port (see
 `docs/superpowers/specs/2026-09-11-kmp-shared-module-design.md`, including its "As built" section).
 Under AGP 9 the multiplatform plugin cannot share a module with `com.android.application`, which is
-why the split exists. Nothing in `shared` may import `android.*` or `java.*`; the JVM-only calls the
-moved code used (`org.json`, `String.format`, `System.currentTimeMillis`, `java.util.Map.merge`,
-Room's Android `withTransaction`) are provided by small shims under `shared/src/commonMain/.../{json,text,time,collections,data}`.
+why the split exists. Nothing in `shared` may import `android.*` or `java.*`, and none of the JVM-only
+stdlib is available there (`String.format`, `System.currentTimeMillis`, `java.util.Map.merge`, …):
+use `Double/Float.fixed(decimals)` (`text/Fixed.kt`) for fixed-point number formatting,
+`epochMillis()` (`time/EpochMillis.kt`) for wall-clock time, and plain map arithmetic. Two facades
+keep upstream-facing files close to their originals: the `org.json`-shaped `json/JSONObject`/`JSONArray`
+over kotlinx.serialization (used by `BackupJson`), and `data/withTransaction` over Room's
+`useWriterConnection`. `:shared:compileCommonMainKotlinMetadata` catches any stray JVM call.
 
 - **Package**: `io.github.fowles.stochastic_strength`
 - **Min SDK**: 33 (Android 13), **Target SDK**: 36

@@ -1,6 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
-import io.github.fowles.stochastic_strength.time.System
+import io.github.fowles.stochastic_strength.time.epochMillis
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
@@ -298,7 +298,7 @@ class ExerciseProgressionSeriesBuilder(
             sessionSeeds = seeds.bySession,
             sessions = db.workoutSessionDao().getAll(),
             setsForSession = { db.workoutSetDao().getSetsForSession(it) },
-            now = System.currentTimeMillis(),
+            now = epochMillis(),
         )
     }
 

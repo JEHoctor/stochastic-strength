@@ -1,6 +1,6 @@
 package io.github.fowles.stochastic_strength.domain
 
-import io.github.fowles.stochastic_strength.time.System
+import io.github.fowles.stochastic_strength.time.epochMillis
 import io.github.fowles.stochastic_strength.data.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
@@ -108,7 +108,7 @@ class WorkoutRepository(
         weightUnit: WeightUnit,
         exerciseOverrides: Map<Long, Float> = emptyMap(),
     ): WorkoutPlanner {
-        val now = System.currentTimeMillis()
+        val now = epochMillis()
         val ctx = prescriptionContext(locationId, now)
         val available = ctx.available
         val beliefs = derivedState.snapshot().exerciseBeliefs()
@@ -324,7 +324,7 @@ class WorkoutRepository(
     suspend fun saveWorkout(id: Long?, name: String, entries: List<SavedWorkoutEntry>): Long = db.withTransaction {
         val dao = db.savedWorkoutDao()
         val workoutId = if (id == null) {
-            dao.insert(SavedWorkout(name = name, createdAt = System.currentTimeMillis()))
+            dao.insert(SavedWorkout(name = name, createdAt = epochMillis()))
         } else {
             val existing = dao.getById(id) ?: error("Saved workout $id not found")
             dao.update(existing.copy(name = name))
@@ -486,7 +486,7 @@ class WorkoutRepository(
      */
     suspend fun buildExerciseSparklines(
         windowMs: Long = ExerciseSparklines.DEFAULT_WINDOW_MS,
-        nowMs: Long = System.currentTimeMillis(),
+        nowMs: Long = epochMillis(),
     ): Map<Long, List<Float>> {
         val firstPerformed = db.workoutSetDao().getFirstCompletedAtByExercise()
             .associate { it.exerciseId to it.firstCompletedAt }
@@ -502,7 +502,7 @@ class WorkoutRepository(
 
     suspend fun getCrossTuning(
         muscle: MuscleGroup,
-        now: Long = System.currentTimeMillis(),
+        now: Long = epochMillis(),
     ): List<CrossTuningRow> {
         val snapshot = ReplaySnapshot.loadStaticFromDb(db)
         val muscleIds = snapshot.muscleExerciseIds[muscle] ?: return emptyList()
