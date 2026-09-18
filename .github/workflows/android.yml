@@ -1,0 +1,99 @@
+name: Android
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Unit tests, lint, debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # After `git merge upstream/main`, a file fowles adds under domain/ or data/ lands here,
+      # compiles fine, and is silently absent from commonMain. Make that loud. Also guards
+      # against a schema file landing under app/schemas instead of shared/schemas. Allowlisted
+      # entries are the Android-only files later phases move; shrink the list as they go.
+      - name: Guard against shared-layer code stranded in app
+        run: |
+          base=app/src/main/java/io/github/fowles/stochastic_strength
+          stray=$(find "$base/domain" "$base/data" -name '*.kt' 2>/dev/null \
+                  | grep -v '/domain/strava/' \
+                  | grep -v '/domain/history/HistoryRows.kt' || true)
+          if [ -d app/schemas ]; then stray="$stray"$'\n'"$(find app/schemas -type f)"; fi
+          if [ -n "$stray" ]; then
+            echo "These files belong in shared/ (sources in shared/src/commonMain, schemas in shared/schemas), not app/:"; echo "$stray"; exit 1
+          fi
+
+      # toolchainVersion=21 in gradle/gradle-daemon-jvm.properties. Providing the JDK
+      # here is faster than letting Gradle auto-provision it from foojay on every run.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # Google removed the legacy `tools` package; the action's default `packages` still lists it.
+          packages: platform-tools
+
+      # compileSdk is release(37) { minorApiLevel = 1 }, which is newer than anything
+      # preinstalled on the runner image. Install it explicitly rather than relying on
+      # AGP's auto-download.
+      - name: Install SDK packages
+        run: sdkmanager --install "platforms;android-37.1" "build-tools;37.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # No STOCHASTIC_UPLOAD_* properties here on purpose: debug and test tasks must work
+      # without the upload keystore. Release tasks are guarded in app/build.gradle.kts.
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest :shared:testAndroidHostTest
+
+      # commonMain compiles against only the common stdlib here. An accidental android.* or
+      # java.* import in shared code fails this step on Linux instead of on a macOS runner.
+      - name: Common-code purity
+        run: ./gradlew :shared:compileCommonMainKotlinMetadata
+
+      - name: Lint
+        run: ./gradlew :app:lintDebug
+
+      # No device: proves the instrumented tests still resolve every symbol across the module
+      # boundary. They execute at the emulator gate, not here.
+      - name: Compile instrumented tests
+        run: ./gradlew :app:compileDebugAndroidTestKotlin
+
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            app/build/reports/
+            app/build/test-results/
+            shared/build/reports/
+            shared/build/test-results/
+          if-no-files-found: ignore

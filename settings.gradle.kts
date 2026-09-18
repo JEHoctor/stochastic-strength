@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Stochastic Strength"
 include(":app")
+include(":shared")

@@ -1,8 +1,11 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
 }
+
+// Present on a machine configured to sign uploads (see ~/.gradle/gradle.properties).
+// Absent on CI and on fresh clones, where only debug/test builds are expected to work.
+val hasUploadKeystore = providers.gradleProperty("STOCHASTIC_UPLOAD_STORE_FILE").isPresent
 
 android {
     namespace = "io.github.fowles.stochastic_strength"
@@ -25,18 +28,27 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            storeFile = file(providers.gradleProperty("STOCHASTIC_UPLOAD_STORE_FILE").get())
-            storePassword =
-providers.gradleProperty("STOCHASTIC_UPLOAD_STORE_PASSWORD").get()
-            keyAlias = providers.gradleProperty("STOCHASTIC_UPLOAD_KEY_ALIAS").get()
-            keyPassword = providers.gradleProperty("STOCHASTIC_UPLOAD_KEY_PASSWORD").get()
+        // Only wire the upload keystore when its properties are actually available
+        // (normally ~/.gradle/gradle.properties). Reading them unconditionally resolved
+        // them at configuration time, which broke every task -- debug builds and unit
+        // tests included -- on any checkout without the keystore. Release builds still
+        // refuse to produce an unsigned artifact; see the guard below.
+        if (hasUploadKeystore) {
+            create("release") {
+                storeFile = file(providers.gradleProperty("STOCHASTIC_UPLOAD_STORE_FILE").get())
+                storePassword =
+                    providers.gradleProperty("STOCHASTIC_UPLOAD_STORE_PASSWORD").get()
+                keyAlias = providers.gradleProperty("STOCHASTIC_UPLOAD_KEY_ALIAS").get()
+                keyPassword = providers.gradleProperty("STOCHASTIC_UPLOAD_KEY_PASSWORD").get()
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (hasUploadKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             optimization {
                 enable = true
             }
@@ -56,12 +68,9 @@ providers.gradleProperty("STOCHASTIC_UPLOAD_STORE_PASSWORD").get()
     }
 
     sourceSets {
-        getByName("androidTest").assets.directories.add("$projectDir/schemas")
+        // Room writes schemas in :shared; MigrationTestHelper reads them from this module's test assets.
+        getByName("androidTest").assets.directories.add("$rootDir/shared/schemas")
     }
-}
-
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -71,6 +80,7 @@ dependencies {
         implementation(libs.androidx.fragment)
     }
 
+    implementation(project(":shared"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
@@ -84,22 +94,15 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.compose.material.icons.extended)
-    implementation(libs.androidx.room.runtime)
     implementation(libs.play.services.location)
-    implementation(libs.androidx.room.ktx)
     implementation(libs.vico.compose.m3)
     implementation(libs.reorderable)
     implementation(libs.okhttp)
     implementation(libs.tink.android)
-    ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.json)
     testImplementation(libs.kotlinx.coroutines.test)
     implementation(libs.kotlinx.coroutines.core)
-    // Not used directly. Room 2.8.4's MigrationTestHelper needs kotlinx-serialization >= 1.8.1, but
-    // lifecycle 2.11 pulls 1.7.3 into the app runtime and Gradle's consistent resolution then pins
-    // the androidTest classpath to that. Declaring it here lifts the app runtime to what Room needs.
-    implementation(libs.kotlinx.serialization.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -109,3 +112,18 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
 
+// Without the keystore the release build types would silently produce unsigned artifacts.
+// Fail them loudly instead; debug and test tasks stay unaffected.
+if (!hasUploadKeystore) {
+    tasks.configureEach {
+        if (name.matches(Regex("(assemble|package|bundle)Release.*"))) {
+            doFirst {
+                error(
+                    "Release builds require the STOCHASTIC_UPLOAD_* Gradle properties " +
+                        "(STORE_FILE, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD). " +
+                        "Set them in ~/.gradle/gradle.properties or pass them with -P.",
+                )
+            }
+        }
+    }
+}

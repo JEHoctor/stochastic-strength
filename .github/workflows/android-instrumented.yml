@@ -1,0 +1,69 @@
+name: Android instrumented
+
+# The migration, DAO, and repository tests are instrumented; `BundledDriverMigrationTest` is the
+# only test that opens the database through `AppDatabase.configure()`, i.e. the bundled SQLite
+# driver the app ships with; the rest exercise Room's SupportSQLite compat path. GitHub's Linux
+# runners expose KVM, so the emulator boots at native speed. Slow (~15 min), so it runs on the
+# working branches and on demand, not on PRs.
+on:
+  push:
+    branches: [main, 'claude/**']
+  workflow_dispatch:
+
+concurrency:
+  group: android-instrumented-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  connected:
+    name: connectedAndroidTest on emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Enable KVM for the runner user
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # Google removed the legacy `tools` package; the action's default `packages` still lists it.
+          packages: platform-tools
+
+      - name: Install SDK packages
+        run: sdkmanager --install "platforms;android-37.1" "build-tools;37.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run instrumented tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -camera-back none
+          disable-animations: true
+          script: ./gradlew :app:connectedAndroidTest --console=plain
+
+      - name: Upload instrumented test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connected-test-results
+          path: |
+            app/build/outputs/androidTest-results/
+            app/build/reports/androidTests/
+          if-no-files-found: warn

@@ -8,22 +8,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build
 ./gradlew :app:assembleDebug
 
-# Unit tests (runs on JVM, no device needed)
-./gradlew :app:testDebugUnitTest
+# Unit tests (runs on JVM, no device needed). Most live in :shared; the ui/ ones in :app.
+./gradlew :shared:testAndroidHostTest :app:testDebugUnitTest
 
 # Run a single unit test class
-./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.ExampleUnitTest"
+./gradlew :shared:testAndroidHostTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest"
 
-# Instrumented tests (requires connected device/emulator)
+# Prove shared code is platform-neutral (compiles commonMain against the common stdlib only; fast, Linux-friendly)
+./gradlew :shared:compileCommonMainKotlinMetadata
+
+# Instrumented tests (requires connected device/emulator; CI runs them on a GitHub-hosted emulator)
 ./gradlew :app:connectedAndroidTest
 
 # Lint
 ./gradlew :app:lint
 ```
 
+The iOS side cannot be built on Linux; `.github/workflows/ios.yml` links the shared module as an
+iOS simulator framework on a macOS runner (`:shared:linkDebugFrameworkIosSimulatorArm64`).
+
 ## Architecture
 
-Single-module Android app (`app/`) using Kotlin and Jetpack Compose with Material3.
+Two Gradle modules. `app/` is the Android application (Jetpack Compose with Material3, the
+Android-only services, and the instrumented tests). `shared/` is a Kotlin Multiplatform library
+(`android`, `iosArm64`, `iosSimulatorArm64`) holding the platform-neutral `data/` and `domain/`
+layers in `commonMain`; it is the seed of the iOS port (see
+`docs/superpowers/specs/2026-09-11-kmp-shared-module-design.md`, including its "As built" section).
+Under AGP 9 the multiplatform plugin cannot share a module with `com.android.application`, which is
+why the split exists. Nothing in `shared` may import `android.*` or `java.*`; the JVM-only calls the
+moved code used (`org.json`, `String.format`, `System.currentTimeMillis`, `java.util.Map.merge`,
+Room's Android `withTransaction`) are provided by small shims under `shared/src/commonMain/.../{json,text,time,collections,data}`.
 
 - **Package**: `io.github.fowles.stochastic_strength`
 - **Min SDK**: 33 (Android 13), **Target SDK**: 36
@@ -31,19 +45,31 @@ Single-module Android app (`app/`) using Kotlin and Jetpack Compose with Materia
 - **Theme**: `ui/theme/` — Material3 theming
 - **Entry point**: `MainActivity` sets content via `setContent { StochasticStrengthTheme { ... } }`
 
-Unit tests live in `src/test/` and run on the JVM. Instrumented tests live in `src/androidTest/` and require a device or emulator.
+Unit tests run on the JVM: `shared/src/androidHostTest/` for `data/`/`domain/` (JUnit4, may use
+`internal` symbols) and `app/src/test/` for `ui/`. Instrumented tests live in `app/src/androidTest/`
+and require a device or emulator; they read Room's schema JSON from `shared/schemas/` via `app`'s
+androidTest assets. New code under `domain/` or `data/` goes in `shared` — a CI guard fails if any
+lands in `app/`.
 
 ### Layers
 
 ```
-data/           Room entities, DAOs, AppDatabase, type converters, seed data (ExerciseLibrary)
-domain/         Pure business logic: WorkoutPlanner, ProgressionEngine, WorkoutRepository, coefficient heuristics
-domain/strava/  Strava OAuth + JSON export
-ui/             Composable screens + ViewModels; one sub-package per screen (home/, workout/, history/, debug/, etc.)
-ui/components/  Shared composables (SectionHeader, StrengthGrid, LoadingBox, formatDateTime)
-location/       GPS lookup and KnownLocation resolution
-notification/   Workout foreground notification service
+shared/src/commonMain
+  data/           Room entities, DAOs, AppDatabase, type converters, seed data (ExerciseLibrary)
+  domain/         Pure business logic: WorkoutPlanner, ProgressionEngine, WorkoutRepository, coefficient heuristics
+shared/src/androidMain
+  data/           AppDatabase.getInstance/reset (Context-dependent construction)
+app/src/main
+  domain/strava/  Strava OAuth + JSON export (Android-only until phase 3)
+  domain/history/HistoryRows.kt  (java.time in its API; moves with the UI in phase 2)
+  ui/             Composable screens + ViewModels; one sub-package per screen (home/, workout/, history/, debug/, etc.)
+  ui/components/  Shared composables (SectionHeader, StrengthGrid, LoadingBox, formatDateTime)
+  location/       GPS lookup and KnownLocation resolution
+  notification/   Workout foreground notification service
 ```
+
+Every path keeps the package prefix `io.github.fowles.stochastic_strength`, so the module split
+does not change imports.
 
 There is no DI framework. `StochasticStrengthApp` (the `Application` class) owns `AppDatabase`, `workoutRepository`, `stravaExporter`, and `workoutSessionBus` as singletons. ViewModels obtain them via `application as StochasticStrengthApp`.
 
@@ -85,7 +111,7 @@ Cold-start seeds are not stored per-exercise: `ExerciseSeedExpansion` synthesize
 
 The debug "why this weight" trace (`PrescriptionTraceBuilder`) and the planner share `WorkoutRepository.prescriptionContext`; the trace reports what `prescribe()` did via the `Prescription` fields — do not re-implement pipeline math in display code.
 
-The backtest tree (`app/src/test/.../backtest/`) replays real history (`src/test/resources/backtest/history.json`) through the same `BeliefSessionStep`; `BeliefScoreTest` pins the held-out score and `BeliefPolicyBacktestTest` certifies the failed-weight invariant. Changes to fold/pooling/config must keep the gate green (re-baselining is a human decision).
+The backtest tree (`shared/src/androidHostTest/.../backtest/`) replays real history (`shared/src/androidHostTest/resources/backtest/history.json`, gitignored) through the same `BeliefSessionStep`; `BeliefScoreTest` pins the held-out score and `BeliefPolicyBacktestTest` certifies the failed-weight invariant. Changes to fold/pooling/config must keep the gate green (re-baselining is a human decision).
 
 ### Location & equipment filtering
 
@@ -97,4 +123,13 @@ On workout start, `LocationService` resolves GPS coordinates to a `KnownLocation
 
 ### Database
 
-Room database (`AppDatabase`, version 20). Schema migrations live in `AppDatabase.Companion`. The app has real users — always write a proper `Migration` when bumping the version; destructive fallback is not configured.
+Room database (`AppDatabase`, version 20) on Room's Kotlin Multiplatform APIs: `BundledSQLiteDriver`
+on every platform, migrations written against `SQLiteConnection` (`override fun migrate(db: SQLiteConnection)`;
+`db.execSQL(...)` is the `androidx.sqlite` extension), construction via `@ConstructedBy` +
+`AppDatabase.configure(builder)` (migrations + driver + query dispatcher) with the Android
+`Room.databaseBuilder` in `androidMain`. Schema migrations live in `AppDatabase.Companion`; schema
+JSON is written to `shared/schemas/`. Transactions use `io.github.fowles.stochastic_strength.data.withTransaction`
+(the `useWriterConnection { immediateTransaction { } }` adapter), never Room's Android
+`withTransaction`. Instrumented migration tests that call a migration by hand must wrap the support
+database: `migrate(SupportSQLiteConnection(db))`. The app has real users — always write a proper
+`Migration` when bumping the version; destructive fallback is not configured.

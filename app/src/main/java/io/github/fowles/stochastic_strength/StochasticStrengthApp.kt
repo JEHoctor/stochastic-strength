@@ -2,6 +2,8 @@ package io.github.fowles.stochastic_strength
 
 import android.app.Application
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.getInstance
+import io.github.fowles.stochastic_strength.data.reset
 import io.github.fowles.stochastic_strength.data.seed.ExerciseLibrary
 import io.github.fowles.stochastic_strength.domain.DerivedStateBackfill
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore

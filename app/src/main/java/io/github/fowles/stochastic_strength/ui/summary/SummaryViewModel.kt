@@ -38,8 +38,9 @@ class SummaryViewModel(
     init {
         viewModelScope.launch {
             val session = app.database.workoutSessionDao().getById(sessionId)
-            if (session?.stravaActivityId != null) {
-                stravaController.setState(StravaExportState.Success(session.stravaActivityId))
+            val stravaActivityId = session?.stravaActivityId
+            if (stravaActivityId != null) {
+                stravaController.setState(StravaExportState.Success(stravaActivityId))
             }
         }
     }

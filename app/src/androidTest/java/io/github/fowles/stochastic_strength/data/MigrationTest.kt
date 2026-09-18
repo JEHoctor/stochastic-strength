@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.data
 
 import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.driver.SupportSQLiteConnection
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -355,7 +356,7 @@ class MigrationTest {
         )
         // Touch the DB to trigger onCreate, then run the migration directly.
         val db = helper11.writableDatabase
-        AppDatabase.MIGRATION_11_12.migrate(db)
+        AppDatabase.MIGRATION_11_12.migrate(SupportSQLiteConnection(db))
         return db
     }
 
