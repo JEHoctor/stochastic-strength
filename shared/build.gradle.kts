@@ -24,7 +24,11 @@ kotlin {
     }
     // Migrations keep upstream's `db` parameter name over Room's `connection`;
     // silence the per-override named-argument warning that choice produces.
-    compilerOptions { freeCompilerArgs.add("-Xwarning-level=PARAMETER_NAME_CHANGED_ON_OVERRIDE:disabled") }
+    compilerOptions {
+        freeCompilerArgs.add("-Xwarning-level=PARAMETER_NAME_CHANGED_ON_OVERRIDE:disabled")
+        // Room KMP needs the `expect object AppDatabaseConstructor`; the Beta warning is noise here.
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
 
     sourceSets {
         commonMain.dependencies {

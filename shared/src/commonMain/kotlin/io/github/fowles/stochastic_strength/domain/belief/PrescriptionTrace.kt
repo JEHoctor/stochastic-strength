@@ -9,7 +9,7 @@ import io.github.fowles.stochastic_strength.domain.ProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
-import io.github.fowles.stochastic_strength.text.format
+import io.github.fowles.stochastic_strength.text.fixed
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.format.MonthNames
@@ -68,7 +68,7 @@ object PrescriptionTraceBuilder {
             val foldedAt = beliefs[exerciseId]?.updatedAt ?: now
             TraceLine(
                 "Own belief",
-                "~${WeightFormatter.format(own.e1rm, weightUnit)} (±${"%.0f".format(sigmaPercent(own.uncertainty))}%), " +
+                "~${WeightFormatter.format(own.e1rm, weightUnit)} (±${sigmaPercent(own.uncertainty).fixed(0)}%), " +
                     "last updated ${formatMonthDay(foldedAt)}",
             )
         } else {
@@ -79,7 +79,7 @@ object PrescriptionTraceBuilder {
             TraceLine(
                 "Sibling pull",
                 "siblings imply ~${WeightFormatter.format(exp(sibling.bestGuessLn), weightUnit)}; " +
-                    "blended at ${"%.0f".format(effective.siblingShare * 100f)}%",
+                    "blended at ${(effective.siblingShare * 100f).fixed(0)}%",
             )
         } else {
             TraceLine("Sibling pull", "no siblings with evidence")
@@ -87,7 +87,7 @@ object PrescriptionTraceBuilder {
 
         val effectiveLine = TraceLine(
             "Effective belief",
-            "~${WeightFormatter.format(exp(effective.bestGuessLn), weightUnit)} (±${"%.0f".format(sigmaPercent(effective.uncertainty))}%)",
+            "~${WeightFormatter.format(exp(effective.bestGuessLn), weightUnit)} (±${sigmaPercent(effective.uncertainty).fixed(0)}%)",
         )
 
         val successTarget = BeliefPrescriber.targetE1rm(effective)
@@ -104,7 +104,7 @@ object PrescriptionTraceBuilder {
         val detrainLine = if (retention < 1f) {
             TraceLine(
                 "Detraining backoff",
-                "×${"%.2f".format(retention)} after a layoff → ~${WeightFormatter.format(rawE1rm, weightUnit)}",
+                "×${retention.fixed(2)} after a layoff → ~${WeightFormatter.format(rawE1rm, weightUnit)}",
             )
         } else null
 
@@ -125,7 +125,7 @@ object PrescriptionTraceBuilder {
         } else {
             TraceLine(
                 "HURT backoff",
-                "×${"%.2f".format(prescription.hurtMultiplier)} after ${hurtEvents.size} recent HURT set(s)",
+                "×${prescription.hurtMultiplier.fixed(2)} after ${hurtEvents.size} recent HURT set(s)",
             )
         }
 
@@ -163,7 +163,7 @@ object PrescriptionTraceBuilder {
     }
 
     private fun citeSet(set: WorkoutSet): String {
-        val weight = "%.0f".format(set.targetWeight)
+        val weight = set.targetWeight.fixed(0)
         return when (set.feedback) {
             SetFeedback.TOO_HARD -> "$weight kg × ${set.targetReps} → failed at ${set.actualReps ?: 0}"
             SetFeedback.RIR_2_4 -> "$weight kg × ${set.targetReps} → RIR 2–4"

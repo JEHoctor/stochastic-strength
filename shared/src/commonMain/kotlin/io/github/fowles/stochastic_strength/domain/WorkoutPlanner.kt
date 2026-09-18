@@ -1,6 +1,6 @@
 package io.github.fowles.stochastic_strength.domain
 
-import io.github.fowles.stochastic_strength.time.System
+import io.github.fowles.stochastic_strength.time.epochMillis
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
@@ -24,7 +24,7 @@ class WorkoutPlanner(
     val weightUnit: WeightUnit,
     val locationId: Long?,
     private val random: Random = Random.Default,
-    private val nowMs: Long = System.currentTimeMillis(),
+    private val nowMs: Long = epochMillis(),
     private val coefficientSource: CoefficientSource = ExerciseCoefficients,
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
     private val pacingEstimator: ExercisePacingEstimator = ExercisePacingEstimator.EMPTY,

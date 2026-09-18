@@ -1,7 +1,7 @@
 package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
-import io.github.fowles.stochastic_strength.text.format
+import io.github.fowles.stochastic_strength.text.fixed
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -15,9 +15,9 @@ object WeightFormatter {
 
     fun format(kg: Float, unit: WeightUnit): String {
         return if (unit == WeightUnit.KG) {
-            "%.1f kg".format(kg)
+            "${kg.fixed(1)} kg"
         } else {
-            "%.0f lbs".format(unit.fromKg(kg))
+            "${unit.fromKg(kg).fixed(0)} lbs"
         }
     }
 
@@ -90,7 +90,7 @@ object WeightFormatter {
         for (plate in plates) {
             val count = (remaining / plate + 0.001f).toInt()
             if (count > 0) {
-                val w = if (plate % 1f == 0f) plate.toInt().toString() else "%.1f".format(plate)
+                val w = if (plate % 1f == 0f) plate.toInt().toString() else plate.fixed(1)
                 parts.add(if (count > 1) "${count}× $w $suffix" else "$w $suffix")
                 remaining -= plate * count
             }

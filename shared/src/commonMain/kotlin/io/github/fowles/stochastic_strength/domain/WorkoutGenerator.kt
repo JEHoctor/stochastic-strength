@@ -1,6 +1,5 @@
 package io.github.fowles.stochastic_strength.domain
 
-import io.github.fowles.stochastic_strength.collections.merge
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
@@ -32,7 +31,7 @@ object WorkoutGenerator {
             if ((muscleCount[exercise.primaryMuscle] ?: 0) >= MAX_PER_MUSCLE) continue
 
             result.add(PlannedExercise(exercise = exercise))
-            muscleCount.merge(exercise.primaryMuscle, 1, Int::plus)
+            muscleCount[exercise.primaryMuscle] = (muscleCount[exercise.primaryMuscle] ?: 0) + 1
         }
 
         return result

@@ -516,3 +516,21 @@ Corrections and additions found during implementation and the final whole-branch
 - **`PrescriptionTraceBuilder.formatMonthDay`** is `internal`, not `private`, specifically so a host test can pin it against `SimpleDateFormat("MMM d", Locale.US)` directly.
 - **The "Decisions" section's exceptions list is superseded by this section.** "Phase 1 does not touch `ui/`, `location/`, `notification/`, `MainActivity`, or `StochasticStrengthApp`" undersold it: `ui/` (3 local-val edits) and `StochasticStrengthApp` (2 imports) both needed small changes to keep compiling under K2/KMP, listed above.
 - **Test totals at a77db3c: 395 host tests + 117 instrumented tests.**
+
+## Follow-up (2026-09-17): same-named shims replaced with honest names
+
+The three shims that deliberately shadowed a JVM name via explicit import
+(`time.System`, `text.format`, `collections.merge`) traded readability for
+zero call-site edits, and one of them (`merge`) never even ran on the JVM
+because the `java.util.Map` member wins. They are gone: `epochMillis()`
+replaces `System.currentTimeMillis()` (8 sites, 4 files); `Double/Float.fixed(n)`
+replaces `"%.nf".format(x)` (9 sites, 2 files; the printf-subset parser is
+deleted, only the rounding core remains); `muscleCount.merge(m, 1, Int::plus)`
+became plain map arithmetic (1 site). The two facades that shadow nothing on
+the common classpath — the `org.json`-shaped JSON API and `withTransaction` —
+stay. One behavior change: number formatting is now locale-independent on
+Android too (always `.`); the app is English-only. Cost to upstream merges:
+18 one-line call-site edits in 7 files; a future upstream
+`System.currentTimeMillis()` in shared code fails `compileCommonMainKotlinMetadata`
+loudly instead of compiling silently.
+

@@ -1,6 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.backup
 
-import io.github.fowles.stochastic_strength.time.System
+import io.github.fowles.stochastic_strength.time.epochMillis
 import io.github.fowles.stochastic_strength.data.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
@@ -22,7 +22,7 @@ class BackupManager(
         WorkoutBackup(
             formatVersion = WorkoutBackup.FORMAT_VERSION,
             dbVersion = WorkoutBackup.DB_VERSION,
-            exportedAt = System.currentTimeMillis(),
+            exportedAt = epochMillis(),
             exercises = db.exerciseDao().getAll(),
             knownLocations = db.knownLocationDao().getAll(),
             locationExcludedExercises = db.locationExcludedExerciseDao().getAll(),
